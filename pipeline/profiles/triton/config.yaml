@@ -8,21 +8,25 @@ jobs: 200
 latency-wait: 60
 retries: 1
 
+# Triton warns about jobs shorter than 120 s and asks for jobs of hours.
+# One Slurm job runs 4 chunk groups: about 100 jobs of 15-60 min.
+group-components:
+  - chunk=4
+
 default-resources:
   slurm_partition: batch
   mem_mb: 2000
-  runtime: 10
+  runtime: 5
 
-# Runtimes from a laptop test (3 s per trial for n_obs = 1024), doubled.
-# A chunk group (fit + score + compare) runs in series, so Slurm gets the
-# sum: 10 + 50 + 10 = 70 min. The longest groups take about 25 min on the
-# laptop (obs_per_chunk = 256 in make_cells.py).
+# Runtimes from a Triton run with obs_per_chunk = 64: 3-5 min per chunk
+# group for every n_obs. With obs_per_chunk = 256 (make_cells.py), the
+# longest chunk group takes about 15 min.
 # summarise: all 3.5 million trials in memory.
 # data, combine and the plots are localrules: they run in the Snakemake job.
 set-resources:
   score:
     mem_mb: 4000
-    runtime: 50
+    runtime: 15
   summarise:
     mem_mb: 16000
     runtime: 60
