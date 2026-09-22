@@ -1,0 +1,20 @@
+# Small grid for a laptop test (a few seconds).
+cells: config/cells_small.tsv
+results: results/small
+
+n_trial: 100
+n_test: 200
+seed: 2958319
+
+# pointwise scores computed by rule score
+scores: [elpd, sqe, ae, rps, srps]
+# measures compared by rule compare; each needs its score in `scores`
+measures: [elpd, mse, mae, rmse, r2, rps, srps]
+
+# cells shown in the figures (tau2: "none" or a number, as in the cell table)
+plot:
+  n_obs: [16, 64]
+  beta_t: [0.0, 1.0]
+  out_dev: [0.0, 20.0]
+  tau2: "none"
+  moments_beta_t: [0.0, 1.0]

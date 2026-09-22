@@ -1,0 +1,13 @@
+# Environment that runs Snakemake itself, on Triton or on a laptop.
+# Versions as tested on the laptop. Create on Triton with:
+#   module load mamba
+#   mamba env create --file snakemake.yml --prefix env/
+name: snakemake_slurm
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - pip
+  - pip:
+      - snakemake==9.27.0
+      - snakemake-executor-plugin-slurm==2.8.0

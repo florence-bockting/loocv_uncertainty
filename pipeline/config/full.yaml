@@ -1,0 +1,26 @@
+# Full grid of Sivula et al. (2025), as in simulated/setup_all.py.
+cells: config/cells_full.tsv
+results: results/full
+
+n_trial: 2000
+n_test: 4000
+seed: 2958319
+
+# pointwise scores computed by rule score
+scores: [elpd, sqe, ae, rps, srps]
+# measures compared by rule compare; each needs its score in `scores`
+measures: [elpd, mse, mae, rmse, r2, rps, srps]
+
+# cells shown in the figures, as in simulated/plot_all__*.py
+plot:
+  n_obs: [32, 128, 512]
+  beta_t: [0.0, 0.2, 1.0]
+  out_dev: [0.0, 20.0]
+  tau2: "none"
+  moments_beta_t: [0.0, 0.1, 0.2, 0.5, 1.0]
+
+# paper figures for the side-by-side pages (relative to the pipeline folder)
+paper_figs:
+  calibration: ../simulated/figs/fig_calib_n_b_both.pdf
+  joint: ../simulated/figs/fig_joint.pdf
+  moments: ../simulated/figs/fig_moments_n_b.pdf

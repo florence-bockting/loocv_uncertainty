@@ -1,0 +1,22 @@
+# Simulation grid of Sivula et al. (2025), extended to the loo measures.
+# DAG per cell: data -> fit (per model, chunk) -> score -> compare -> combine
+# Report: combine -> summarise -> plot_* -> side_by_side
+# Run from the pipeline folder:
+#   snakemake --profile profiles/local
+#   snakemake --profile profiles/triton
+
+
+configfile: "config/small.yaml"
+
+
+include: "rules/common.smk"
+include: "rules/simulate.smk"
+include: "rules/score.smk"
+include: "rules/compare.smk"
+include: "rules/report.smk"
+
+
+rule all:
+    input:
+        f"{RES}/trials.rds",
+        report_files(),
