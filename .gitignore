@@ -7,3 +7,14 @@ __pycache__/
 *.aux
 *.log
 *.npz
+
+pipeline/checks/tmp/
+pipeline/.venv/
+pipeline/.snakemake/
+pipeline/results/
+pipeline/env/
+pipeline/logs/*
+!pipeline/logs/.gitkeep
+
+Predictive_measures_and_model_comparison_in_the_loo_package.pdf
+sivula(2022)_uncertainty-in-bayesian-loo-cv.pdf

@@ -1,0 +1,31 @@
+# Full grid on Aalto Triton with Slurm, started by snakemake_slurm.sh.
+# Follows https://github.com/AaltoRSE/snakemake-triton-example
+executor: slurm
+configfile: config/full.yaml
+software-deployment-method: conda
+conda-frontend: mamba
+jobs: 200
+latency-wait: 60
+retries: 1
+
+default-resources:
+  slurm_partition: batch
+  mem_mb: 2000
+  runtime: 30
+
+# Runtimes from a laptop test (3 s per trial for n_obs = 1024):
+# data: training + pooled test sets, about 200 MB for n_obs = 1024
+# chunk group (fit + score + compare): at most 125 trials, about 7 min
+# combine, summarise: all 3.5 million trials in memory
+set-resources:
+  data:
+    mem_mb: 4000
+    runtime: 15
+  score:
+    mem_mb: 4000
+  combine:
+    mem_mb: 16000
+    runtime: 60
+  summarise:
+    mem_mb: 16000
+    runtime: 60
