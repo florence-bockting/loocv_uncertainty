@@ -15,5 +15,6 @@
 export OPENBLAS_NUM_THREADS=1
 
 module load mamba
-source activate env/
+# Absolute path: mamba resolves a relative prefix inside envs_dirs.
+source activate "$SLURM_SUBMIT_DIR/env"
 snakemake --profile profiles/triton --cores 2 "$@"
