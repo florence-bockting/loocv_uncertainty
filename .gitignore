@@ -8,6 +8,8 @@ __pycache__/
 *.log
 *.npz
 
+tutorial/
+
 pipeline/checks/tmp/
 pipeline/.venv/
 pipeline/.snakemake/

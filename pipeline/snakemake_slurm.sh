@@ -6,7 +6,7 @@
 #SBATCH --job-name=loocv_snakemake
 #SBATCH --time=12:00:00
 #SBATCH --cpus-per-task=2
-#SBATCH --mem=4G
+#SBATCH --mem=8G                   # the local rule combine holds all trials
 #SBATCH --output=logs/snakemake_slurm-%j.out
 #SBATCH --error=logs/snakemake_slurm-%j.err
 

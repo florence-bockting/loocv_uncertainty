@@ -2,7 +2,9 @@
 
 One row per grid cell. n_chunks splits the trials of a cell into jobs of
 similar cost: the cost of a trial grows with n_obs, so larger cells get
-more chunks. Run from the pipeline folder:
+more chunks. With obs_per_chunk = 256 and 2000 trials, a chunk of a cell
+with n_obs >= 256 takes about 25 min, close to the 30 min per job that
+Triton recommends (https://scicomp.aalto.fi/triton/tut/array/). Run from the pipeline folder:
     python workflow/scripts/make_cells.py
 """
 import csv
@@ -16,7 +18,7 @@ GRIDS = {
         beta_t=[0.0, 0.05, 0.1, 0.2, 0.5, 1.0],
         out_dev=[0.0, 20.0, 200.0],
         tau2=["none", 1.0],
-        obs_per_chunk=64,
+        obs_per_chunk=256,
     ),
     # cells of Fig. 5 and Fig. 6 in the paper
     "config/cells_paper.tsv": dict(

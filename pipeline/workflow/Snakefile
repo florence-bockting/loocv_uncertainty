@@ -16,6 +16,18 @@ include: "rules/compare.smk"
 include: "rules/report.smk"
 
 
+# Short rules run inside the Snakemake job, not as separate Slurm jobs:
+# Triton asks for jobs of about 30 min or longer.
+localrules:
+    all,
+    data,
+    combine,
+    plot_calibration,
+    plot_joint,
+    plot_moments,
+    side_by_side,
+
+
 rule all:
     input:
         f"{RES}/trials.rds",

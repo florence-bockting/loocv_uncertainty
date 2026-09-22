@@ -11,21 +11,18 @@ retries: 1
 default-resources:
   slurm_partition: batch
   mem_mb: 2000
-  runtime: 30
+  runtime: 10
 
-# Runtimes from a laptop test (3 s per trial for n_obs = 1024):
-# data: training + pooled test sets, about 200 MB for n_obs = 1024
-# chunk group (fit + score + compare): at most 125 trials, about 7 min
-# combine, summarise: all 3.5 million trials in memory
+# Runtimes from a laptop test (3 s per trial for n_obs = 1024), doubled.
+# A chunk group (fit + score + compare) runs in series, so Slurm gets the
+# sum: 10 + 50 + 10 = 70 min. The longest groups take about 25 min on the
+# laptop (obs_per_chunk = 256 in make_cells.py).
+# summarise: all 3.5 million trials in memory.
+# data, combine and the plots are localrules: they run in the Snakemake job.
 set-resources:
-  data:
-    mem_mb: 4000
-    runtime: 15
   score:
     mem_mb: 4000
-  combine:
-    mem_mb: 16000
-    runtime: 60
+    runtime: 50
   summarise:
     mem_mb: 16000
     runtime: 60
