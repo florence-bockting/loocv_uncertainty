@@ -1,19 +1,55 @@
-cell	n_obs	beta_t	out_dev	tau2	n_chunks
-n32_b0_o0_tnone	32	0	0	none	1
-n32_b0_o20_tnone	32	0	20	none	1
-n32_b0.2_o0_tnone	32	0.2	0	none	1
-n32_b0.2_o20_tnone	32	0.2	20	none	1
-n32_b1_o0_tnone	32	1	0	none	1
-n32_b1_o20_tnone	32	1	20	none	1
-n128_b0_o0_tnone	128	0	0	none	2
-n128_b0_o20_tnone	128	0	20	none	2
-n128_b0.2_o0_tnone	128	0.2	0	none	2
-n128_b0.2_o20_tnone	128	0.2	20	none	2
-n128_b1_o0_tnone	128	1	0	none	2
-n128_b1_o20_tnone	128	1	20	none	2
-n512_b0_o0_tnone	512	0	0	none	8
-n512_b0_o20_tnone	512	0	20	none	8
-n512_b0.2_o0_tnone	512	0.2	0	none	8
-n512_b0.2_o20_tnone	512	0.2	20	none	8
-n512_b1_o0_tnone	512	1	0	none	8
-n512_b1_o20_tnone	512	1	20	none	8
+cell	family	n_obs	beta_t	out_dev	tau2	n_chunks
+n32_b0_o0_tnone	gaussian	32	0	0	none	1
+n32_b0_o20_tnone	gaussian	32	0	20	none	1
+n32_b0.2_o0_tnone	gaussian	32	0.2	0	none	1
+n32_b0.2_o20_tnone	gaussian	32	0.2	20	none	1
+n32_b1_o0_tnone	gaussian	32	1	0	none	1
+n32_b1_o20_tnone	gaussian	32	1	20	none	1
+n128_b0_o0_tnone	gaussian	128	0	0	none	2
+n128_b0_o20_tnone	gaussian	128	0	20	none	2
+n128_b0.2_o0_tnone	gaussian	128	0.2	0	none	2
+n128_b0.2_o20_tnone	gaussian	128	0.2	20	none	2
+n128_b1_o0_tnone	gaussian	128	1	0	none	2
+n128_b1_o20_tnone	gaussian	128	1	20	none	2
+n512_b0_o0_tnone	gaussian	512	0	0	none	8
+n512_b0_o20_tnone	gaussian	512	0	20	none	8
+n512_b0.2_o0_tnone	gaussian	512	0.2	0	none	8
+n512_b0.2_o20_tnone	gaussian	512	0.2	20	none	8
+n512_b1_o0_tnone	gaussian	512	1	0	none	8
+n512_b1_o20_tnone	gaussian	512	1	20	none	8
+bin_n32_b0_o0_tnone	binomial	32	0	0	none	1
+bin_n32_b0_o5_tnone	binomial	32	0	5	none	1
+bin_n32_b0.2_o0_tnone	binomial	32	0.2	0	none	1
+bin_n32_b0.2_o5_tnone	binomial	32	0.2	5	none	1
+bin_n32_b1_o0_tnone	binomial	32	1	0	none	1
+bin_n32_b1_o5_tnone	binomial	32	1	5	none	1
+bin_n128_b0_o0_tnone	binomial	128	0	0	none	1
+bin_n128_b0_o5_tnone	binomial	128	0	5	none	1
+bin_n128_b0.2_o0_tnone	binomial	128	0.2	0	none	1
+bin_n128_b0.2_o5_tnone	binomial	128	0.2	5	none	1
+bin_n128_b1_o0_tnone	binomial	128	1	0	none	1
+bin_n128_b1_o5_tnone	binomial	128	1	5	none	1
+bin_n512_b0_o0_tnone	binomial	512	0	0	none	1
+bin_n512_b0_o5_tnone	binomial	512	0	5	none	1
+bin_n512_b0.2_o0_tnone	binomial	512	0.2	0	none	1
+bin_n512_b0.2_o5_tnone	binomial	512	0.2	5	none	1
+bin_n512_b1_o0_tnone	binomial	512	1	0	none	1
+bin_n512_b1_o5_tnone	binomial	512	1	5	none	1
+pois_n32_b0_o0_tnone	poisson	32	0	0	none	1
+pois_n32_b0_o2_tnone	poisson	32	0	2	none	1
+pois_n32_b0.2_o0_tnone	poisson	32	0.2	0	none	1
+pois_n32_b0.2_o2_tnone	poisson	32	0.2	2	none	1
+pois_n32_b1_o0_tnone	poisson	32	1	0	none	1
+pois_n32_b1_o2_tnone	poisson	32	1	2	none	1
+pois_n128_b0_o0_tnone	poisson	128	0	0	none	1
+pois_n128_b0_o2_tnone	poisson	128	0	2	none	1
+pois_n128_b0.2_o0_tnone	poisson	128	0.2	0	none	1
+pois_n128_b0.2_o2_tnone	poisson	128	0.2	2	none	1
+pois_n128_b1_o0_tnone	poisson	128	1	0	none	1
+pois_n128_b1_o2_tnone	poisson	128	1	2	none	1
+pois_n512_b0_o0_tnone	poisson	512	0	0	none	4
+pois_n512_b0_o2_tnone	poisson	512	0	2	none	4
+pois_n512_b0.2_o0_tnone	poisson	512	0.2	0	none	4
+pois_n512_b0.2_o2_tnone	poisson	512	0.2	2	none	4
+pois_n512_b1_o0_tnone	poisson	512	1	0	none	4
+pois_n512_b1_o2_tnone	poisson	512	1	2	none	4

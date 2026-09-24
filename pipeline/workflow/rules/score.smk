@@ -12,6 +12,7 @@ rule score:
     conda:
         "../envs/r.yaml"
     params:
+        cell=cell_params,
         scores=config["scores"],
     script:
         "../scripts/score.R"

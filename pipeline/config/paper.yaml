@@ -4,12 +4,18 @@ results: results/paper
 
 n_trial: 2000
 n_test: 4000
+# test sets per binomial cell; quadrature makes them costlier to score
+n_test_binomial: 250
+# a poisson cell sums over a count grid on top of that quadrature
+n_test_poisson: 50
 seed: 2958319
 
 # pointwise scores computed by rule score
-scores: [elpd, sqe, ae, rps, srps]
-# measures compared by rule compare; each needs its score in `scores`
-measures: [elpd, mse, mae, rmse, r2, rps, srps]
+scores: [elpd, sqe, ae, rps, srps, acc]
+# measures compared by rule compare; each needs its score in `scores`.
+# brier, acc and bacc are computed for the binomial cells only.
+measures: [elpd, mlpd, ic, mse, mae, rmse, r2, rps, srps,
+           brier, acc, bacc]
 
 # cells shown in the figures, as in simulated/plot_all__*.py
 plot:
@@ -24,3 +30,14 @@ paper_figs:
   calibration: ../simulated/figs/fig_calib_n_b_both.pdf
   joint: ../simulated/figs/fig_joint.pdf
   moments: ../simulated/figs/fig_moments_n_b.pdf
+  var_ratio: ../simulated/figs/fig_var_ratioi_n_b.pdf
+  err: ../simulated/figs/fig_err_n_b_both.pdf
+  errdirection: ../simulated/figs/fig_errdirection_n_b_both.pdf
+
+# Cells of the binomial figures, where out_dev is on the logit scale.
+plot_binomial:
+  out_dev: [0.0, 5.0]
+
+# Cells of the poisson figures, where out_dev is on the log scale.
+plot_poisson:
+  out_dev: [0.0, 2.0]

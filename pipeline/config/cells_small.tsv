@@ -1,17 +1,33 @@
-cell	n_obs	beta_t	out_dev	tau2	n_chunks
-n16_b0_o0_tnone	16	0	0	none	1
-n16_b0_o0_t1	16	0	0	1	1
-n16_b0_o20_tnone	16	0	20	none	1
-n16_b0_o20_t1	16	0	20	1	1
-n16_b1_o0_tnone	16	1	0	none	1
-n16_b1_o0_t1	16	1	0	1	1
-n16_b1_o20_tnone	16	1	20	none	1
-n16_b1_o20_t1	16	1	20	1	1
-n64_b0_o0_tnone	64	0	0	none	2
-n64_b0_o0_t1	64	0	0	1	2
-n64_b0_o20_tnone	64	0	20	none	2
-n64_b0_o20_t1	64	0	20	1	2
-n64_b1_o0_tnone	64	1	0	none	2
-n64_b1_o0_t1	64	1	0	1	2
-n64_b1_o20_tnone	64	1	20	none	2
-n64_b1_o20_t1	64	1	20	1	2
+cell	family	n_obs	beta_t	out_dev	tau2	n_chunks
+n16_b0_o0_tnone	gaussian	16	0	0	none	1
+n16_b0_o0_t1	gaussian	16	0	0	1	1
+n16_b0_o20_tnone	gaussian	16	0	20	none	1
+n16_b0_o20_t1	gaussian	16	0	20	1	1
+n16_b1_o0_tnone	gaussian	16	1	0	none	1
+n16_b1_o0_t1	gaussian	16	1	0	1	1
+n16_b1_o20_tnone	gaussian	16	1	20	none	1
+n16_b1_o20_t1	gaussian	16	1	20	1	1
+n64_b0_o0_tnone	gaussian	64	0	0	none	2
+n64_b0_o0_t1	gaussian	64	0	0	1	2
+n64_b0_o20_tnone	gaussian	64	0	20	none	2
+n64_b0_o20_t1	gaussian	64	0	20	1	2
+n64_b1_o0_tnone	gaussian	64	1	0	none	2
+n64_b1_o0_t1	gaussian	64	1	0	1	2
+n64_b1_o20_tnone	gaussian	64	1	20	none	2
+n64_b1_o20_t1	gaussian	64	1	20	1	2
+bin_n16_b0_o0_tnone	binomial	16	0	0	none	1
+bin_n16_b0_o5_tnone	binomial	16	0	5	none	1
+bin_n16_b1_o0_tnone	binomial	16	1	0	none	1
+bin_n16_b1_o5_tnone	binomial	16	1	5	none	1
+bin_n64_b0_o0_tnone	binomial	64	0	0	none	1
+bin_n64_b0_o5_tnone	binomial	64	0	5	none	1
+bin_n64_b1_o0_tnone	binomial	64	1	0	none	1
+bin_n64_b1_o5_tnone	binomial	64	1	5	none	1
+pois_n16_b0_o0_tnone	poisson	16	0	0	none	1
+pois_n16_b0_o2_tnone	poisson	16	0	2	none	1
+pois_n16_b1_o0_tnone	poisson	16	1	0	none	1
+pois_n16_b1_o2_tnone	poisson	16	1	2	none	1
+pois_n64_b0_o0_tnone	poisson	64	0	0	none	2
+pois_n64_b0_o2_tnone	poisson	64	0	2	none	2
+pois_n64_b1_o0_tnone	poisson	64	1	0	none	2
+pois_n64_b1_o2_tnone	poisson	64	1	2	none	2

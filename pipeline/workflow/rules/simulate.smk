@@ -11,6 +11,8 @@ rule data:
         cell=cell_params,
         n_trial=config["n_trial"],
         n_test=config["n_test"],
+        n_test_binomial=config.get("n_test_binomial", 250),
+        n_test_poisson=config.get("n_test_poisson", 50),
         n_obs_max=N_OBS_MAX,
         seed=config["seed"],
     script:

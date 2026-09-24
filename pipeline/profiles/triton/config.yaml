@@ -26,7 +26,7 @@ default-resources:
 set-resources:
   score:
     mem_mb: 4000
-    runtime: 15
+    runtime: 25
   summarise:
     mem_mb: 16000
     runtime: 60

@@ -26,9 +26,31 @@ bb_moments <- function(x, w) {
   list(`mean/SD` = m / sd, skewness = skew)
 }
 
+# A trial without a finite SE has no z-score and no PIT, so it cannot enter
+# the moments. acc and bacc produce such trials; see finite_se() in
+# lib/measures.R. Drop them here and count them for each cell and measure.
+usable <- function(g) {
+  g[is.finite(g$estimate) & is.finite(g$se) & is.finite(g$target), ]
+}
+
+# Fewer usable trials than this leave the bootstrap moments meaningless.
+MIN_TRIALS <- 10
+
 groups <- split(trials, list(trials$cell, trials$measure), drop = TRUE)
 weights <- list()
 rows <- lapply(groups, function(g) {
+  label <- paste(g$cell[1], g$measure[1], sep = " / ")
+  n_all <- nrow(g)
+  g <- usable(g)
+  n_dropped <- n_all - nrow(g)
+  if (n_dropped > 0) {
+    message(sprintf("%s: dropped %d of %d trials without a finite SE",
+                    label, n_dropped, n_all))
+  }
+  if (nrow(g) < MIN_TRIALS) {
+    message(sprintf("%s: skipped, only %d usable trials", label, nrow(g)))
+    return(NULL)
+  }
   key <- as.character(nrow(g))
   if (is.null(weights[[key]])) weights[[key]] <<- dirichlet_weights(n_bb, nrow(g))
   w <- weights[[key]]
@@ -38,10 +60,12 @@ rows <- lapply(groups, function(g) {
     mom <- bb_moments(quantities[[q]], w)
     do.call(rbind, lapply(names(mom), function(s) {
       qs <- stats::quantile(mom[[s]], c(0.025, 0.5, 0.975), na.rm = TRUE)
-      data.frame(cell = g$cell[1], n_obs = g$n_obs[1], beta_t = g$beta_t[1],
+      data.frame(cell = g$cell[1], family = g$family[1],
+                 n_obs = g$n_obs[1], beta_t = g$beta_t[1],
                  out_dev = g$out_dev[1], tau2 = g$tau2[1],
                  measure = g$measure[1], quantity = q, stat = s,
-                 q025 = qs[[1]], q500 = qs[[2]], q975 = qs[[3]])
+                 q025 = qs[[1]], q500 = qs[[2]], q975 = qs[[3]],
+                 n_trial = nrow(g), n_dropped = n_dropped)
     }))
   }))
 })

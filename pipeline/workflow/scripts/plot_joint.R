@@ -7,6 +7,7 @@ snakemake@source("lib/plot.R")
 
 trials <- readRDS(snakemake@input[[1]])
 measure <- snakemake@wildcards[["measure"]]
+family <- snakemake@wildcards[["family"]]
 sel <- snakemake@params[["sel"]]
 n_sel <- unlist_num(sel$n_obs)
 beta_sel <- unlist_num(sel$beta_t)
@@ -23,7 +24,8 @@ par(mfrow = c(length(beta_sel), length(n_sel)), mar = c(3, 3, 1, 0.8),
     oma = c(0, 7, 3, 0), mgp = c(1.8, 0.5, 0), tcl = -0.25, bty = "l")
 for (b_i in seq_along(beta_sel)) {
   for (n_i in seq_along(n_sel)) {
-    rows <- cell_rows(trials, measure, n_sel[n_i], beta_sel[b_i], 0, sel$tau2)
+    rows <- cell_rows(trials, measure, n_sel[n_i], beta_sel[b_i], 0, sel$tau2,
+                      family)
     xlim <- zoom(rows$estimate)
     ylim <- zoom(rows$target)
     keep <- rows$estimate > xlim[1] & rows$estimate < xlim[2] &

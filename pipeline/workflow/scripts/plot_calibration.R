@@ -6,6 +6,7 @@ snakemake@source("lib/plot.R")
 
 trials <- readRDS(snakemake@input[[1]])
 measure <- snakemake@wildcards[["measure"]]
+family <- snakemake@wildcards[["family"]]
 sel <- snakemake@params[["sel"]]
 n_sel <- unlist_num(sel$n_obs)
 beta_sel <- unlist_num(sel$beta_t)
@@ -21,13 +22,15 @@ for (b_i in seq_along(beta_sel)) {
   for (o_i in seq_along(out_sel)) {
     for (n_i in seq_along(n_sel)) {
       rows <- cell_rows(trials, measure, n_sel[n_i], beta_sel[b_i],
-                        out_sel[o_i], sel$tau2)
+                        out_sel[o_i], sel$tau2, family)
       p <- pit(rows)
       n_na <- sum(is.na(p))
-      counts <- graphics::hist(p[!is.na(p)], breaks = seq(0, 1, length.out = n_bins + 1),
+      p <- p[!is.na(p)]
+      counts <- graphics::hist(p, breaks = seq(0, 1, length.out = n_bins + 1),
                                plot = FALSE)$counts
-      q005 <- stats::qbinom(0.005, nrow(rows), 1 / n_bins)
-      q995 <- stats::qbinom(0.995, nrow(rows), 1 / n_bins)
+      # The envelope counts the trials in the histogram, not the dropped ones.
+      q005 <- stats::qbinom(0.005, length(p), 1 / n_bins)
+      q995 <- stats::qbinom(0.995, length(p), 1 / n_bins)
       ymax <- max(counts, q995) * 1.05
       plot(NA, xlim = c(0, 1), ylim = c(0, ymax), axes = FALSE, xlab = "",
            ylab = "", xaxs = "i", yaxs = "i")
@@ -38,7 +41,7 @@ for (b_i in seq_along(beta_sel)) {
            border = NA)
       last_row <- b_i == length(beta_sel) && o_i == length(out_sel)
       axis(1, at = c(0, 0.5, 1), labels = if (last_row) c("0", "0.5", "1") else FALSE)
-      if (n_na > 0) mtext(sprintf("SE = 0: %d", n_na), side = 3, line = -1,
+      if (n_na > 0) mtext(sprintf("dropped: %d", n_na), side = 3, line = -1,
                           cex = 0.6, adj = 1)
       if (n_i == 1) {
         mtext(if (out_sel[o_i] > 0) "outlier" else "no outlier", side = 2,

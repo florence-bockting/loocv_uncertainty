@@ -37,8 +37,10 @@ greys <- function(k) {
 }
 
 # Trials of one cell, selected by its parameters.
-cell_rows <- function(trials, measure, n_obs, beta_t, out_dev, tau2) {
-  trials[trials$measure == measure & trials$n_obs == n_obs &
+cell_rows <- function(trials, measure, n_obs, beta_t, out_dev, tau2,
+                      family = "gaussian") {
+  trials[trials$measure == measure & trials$family == family &
+           trials$n_obs == n_obs &
            abs(trials$beta_t - beta_t) < 1e-12 &
            abs(trials$out_dev - out_dev) < 1e-12 &
            trials$tau2 == tau2, ]
@@ -62,3 +64,35 @@ open_pdf <- function(path, width_pt, height_pt) {
 }
 
 unlist_num <- function(x) as.numeric(unlist(x))
+
+# Letter-value ("boxen") plot of x at the position `at`, as the boxenplot of
+# seaborn with its default depth. The innermost box spans the quartiles;
+# each box further out halves the tail probability, and is narrower and
+# lighter. The outer boxes are drawn first, so the inner ones stay visible.
+boxen <- function(x, at, width = 0.8, col = MPL[1]) {
+  x <- x[is.finite(x)]
+  if (length(x) < 8) return(invisible(NULL))
+  k <- max(1, floor(log2(length(x))) - 3)
+  for (i in rev(seq_len(k))) {
+    p <- 2^-(i + 1)
+    q <- stats::quantile(x, c(p, 1 - p), names = FALSE)
+    w <- width / 2 * 0.5^((i - 1) / 2)
+    graphics::rect(at - w, q[1], at + w, q[2],
+                   col = adjust_lightness(col, 1.3 + 0.1 * (i - 1)),
+                   border = "black", lwd = 0.5)
+  }
+  graphics::segments(at - width / 2, stats::median(x),
+                     at + width / 2, stats::median(x), lwd = 1.2)
+}
+
+# The deepest quantiles that boxen() draws, for an axis range that ignores
+# the points outside the outermost box.
+boxen_range <- function(x) {
+  x <- x[is.finite(x)]
+  if (length(x) < 8) return(c(NA_real_, NA_real_))
+  p <- 2^-(max(1, floor(log2(length(x))) - 3) + 1)
+  stats::quantile(x, c(p, 1 - p), names = FALSE)
+}
+
+# LOO error of each trial: the estimate minus the target.
+loo_error <- function(rows) rows$estimate - rows$target

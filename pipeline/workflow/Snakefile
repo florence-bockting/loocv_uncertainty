@@ -25,6 +25,11 @@ localrules:
     plot_calibration,
     plot_joint,
     plot_moments,
+    plot_overview,
+    plot_var_ratio,
+    plot_err,
+    plot_errdirection,
+    plot_pointwise,
     side_by_side,
 
 

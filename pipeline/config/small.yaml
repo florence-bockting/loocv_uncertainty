@@ -4,12 +4,18 @@ results: results/small
 
 n_trial: 100
 n_test: 200
+# test sets per binomial cell; quadrature makes them costlier to score
+n_test_binomial: 50
+# a poisson cell sums over a count grid on top of that quadrature
+n_test_poisson: 20
 seed: 2958319
 
 # pointwise scores computed by rule score
-scores: [elpd, sqe, ae, rps, srps]
-# measures compared by rule compare; each needs its score in `scores`
-measures: [elpd, mse, mae, rmse, r2, rps, srps]
+scores: [elpd, sqe, ae, rps, srps, acc]
+# measures compared by rule compare; each needs its score in `scores`.
+# brier, acc and bacc are computed for the binomial cells only.
+measures: [elpd, mlpd, ic, mse, mae, rmse, r2, rps, srps,
+           brier, acc, bacc]
 
 # cells shown in the figures (tau2: "none" or a number, as in the cell table)
 plot:
@@ -18,3 +24,11 @@ plot:
   out_dev: [0.0, 20.0]
   tau2: "none"
   moments_beta_t: [0.0, 1.0]
+
+# Cells of the binomial figures, where out_dev is on the logit scale.
+plot_binomial:
+  out_dev: [0.0, 5.0]
+
+# Cells of the poisson figures, where out_dev is on the log scale.
+plot_poisson:
+  out_dev: [0.0, 2.0]

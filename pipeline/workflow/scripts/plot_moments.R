@@ -7,10 +7,12 @@ snakemake@source("lib/plot.R")
 
 mom <- readRDS(snakemake@input[[1]])
 measure <- snakemake@wildcards[["measure"]]
+family <- snakemake@wildcards[["family"]]
 sel <- snakemake@params[["sel"]]
 beta_sel <- unlist_num(sel$moments_beta_t)
 labels <- measure_labels(measure)
-mom <- mom[mom$measure == measure & mom$out_dev == 0 & mom$tau2 == sel$tau2, ]
+mom <- mom[mom$measure == measure & mom$family == family &
+             mom$out_dev == 0 & mom$tau2 == sel$tau2, ]
 
 quantities <- c("estimate", "target", "error")
 stats_names <- c("mean/SD", "skewness")
