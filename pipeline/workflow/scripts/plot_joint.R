@@ -15,7 +15,7 @@ labels <- measure_labels(measure)
 
 # Zoom as in the script: 1 %-99 % range plus 25 % on each side.
 zoom <- function(v) {
-  lims <- stats::quantile(v, c(0.01, 0.99))
+  lims <- stats::quantile(v, c(0.01, 0.99), na.rm = TRUE)
   lims + c(-1, 1) * 0.25 * diff(lims)
 }
 
@@ -28,8 +28,8 @@ for (b_i in seq_along(beta_sel)) {
                       family)
     xlim <- zoom(rows$estimate)
     ylim <- zoom(rows$target)
-    keep <- rows$estimate > xlim[1] & rows$estimate < xlim[2] &
-      rows$target > ylim[1] & rows$target < ylim[2]
+    keep <- which(rows$estimate > xlim[1] & rows$estimate < xlim[2] &
+      rows$target > ylim[1] & rows$target < ylim[2])
     x <- rows$estimate[keep]
     y <- rows$target[keep]
 
