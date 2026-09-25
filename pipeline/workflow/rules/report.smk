@@ -29,6 +29,29 @@ rule plot_calibration:
         "../scripts/plot_calibration.R"
 
 
+rule plot_coverage:
+    input:
+        f"{RES}/trials.rds",
+    output:
+        raw=f"{RES}/figs/coverage_absdiff.pdf",
+        scaled=f"{RES}/figs/coverage_absdiff_n.pdf",
+        cutoffs=f"{RES}/coverage_cutoffs.csv",
+        **{
+            f"cutoff_{family}": f"{RES}/figs/coverage_cutoff_{family}.pdf"
+            for family in FAMILIES
+        },
+    log:
+        f"{RES}/logs/plot_coverage.log",
+    conda:
+        "../envs/report.yaml"
+    params:
+        families=FAMILIES,
+        n_bins=30,
+        target_cov=0.9,
+    script:
+        "../scripts/plot_coverage.R"
+
+
 rule plot_joint:
     input:
         f"{RES}/trials.rds",

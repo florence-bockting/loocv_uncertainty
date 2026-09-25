@@ -23,6 +23,7 @@ localrules:
     data,
     combine,
     plot_calibration,
+    plot_coverage,
     plot_joint,
     plot_moments,
     plot_overview,

@@ -121,6 +121,12 @@ def report_files():
     ]
     files += [f"{RES}/figs/pointwise_{cell}.pdf" for cell in plot_cells()]
     files += [
+        f"{RES}/figs/coverage_absdiff.pdf",
+        f"{RES}/figs/coverage_absdiff_n.pdf",
+        f"{RES}/coverage_cutoffs.csv",
+    ]
+    files += [f"{RES}/figs/coverage_cutoff_{family}.pdf" for family in FAMILIES]
+    files += [
         f"{RES}/figs/side_by_side_{fig}.pdf" for fig in config.get("paper_figs", {})
     ]
     return files
