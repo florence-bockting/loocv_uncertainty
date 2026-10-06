@@ -185,12 +185,18 @@ MEASURE_SPEC <- list(
 # The score that each measure is computed from.
 MEASURE_SCORE <- vapply(MEASURE_SPEC, `[[`, character(1), "score")
 
-# Measures that need a binary outcome. The others apply to both families.
+# Measures that need a binary outcome.
 MEASURES_BINARY <- c("brier", "acc", "bacc")
+
+# Measures of the gaussian family only. A count predictive needs a pmf
+# grid for rps and srps, which makes the poisson cells too slow.
+MEASURES_GAUSSIAN <- c("rps", "srps")
 
 # The measures of `measures` that the family supports.
 measures_for_family <- function(measures, family) {
-  if (family == "binomial") measures else setdiff(measures, MEASURES_BINARY)
+  if (family != "binomial") measures <- setdiff(measures, MEASURES_BINARY)
+  if (family != "gaussian") measures <- setdiff(measures, MEASURES_GAUSSIAN)
+  measures
 }
 
 # An SE of zero carries no information: the z-score and the PIT of the

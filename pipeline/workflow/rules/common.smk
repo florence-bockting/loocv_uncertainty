@@ -22,8 +22,10 @@ RES = config["results"]
 N_OBS_MAX = max(cell["n_obs"] for cell in CELLS.values())
 MODELS = ["A", "B"]
 FAMILIES = sorted({cell["family"] for cell in CELLS.values()})
-# Mirrors MEASURES_BINARY in workflow/scripts/lib/measures.R.
+# Mirror MEASURES_BINARY and MEASURES_GAUSSIAN in
+# workflow/scripts/lib/measures.R.
 MEASURES_BINARY = ["brier", "acc", "bacc"]
+MEASURES_GAUSSIAN = ["rps", "srps"]
 
 
 def family_measures(family):
@@ -31,7 +33,8 @@ def family_measures(family):
     return [
         m
         for m in config["measures"]
-        if family == "binomial" or m not in MEASURES_BINARY
+        if (family == "binomial" or m not in MEASURES_BINARY)
+        and (family == "gaussian" or m not in MEASURES_GAUSSIAN)
     ]
 
 
