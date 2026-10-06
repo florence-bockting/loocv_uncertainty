@@ -22,11 +22,16 @@ default-resources:
 # group for every n_obs. With obs_per_chunk = 256 (make_cells.py), the
 # longest chunk group takes about 15 min.
 # summarise: all 3.5 million trials in memory.
-# data, combine and the plots are localrules: they run in the Snakemake job.
+# compare_models: reads the score files of all cells and chunks. Runtime not
+# measured yet.
+# generate_data and the plots are localrules: they run in the Snakemake job.
 set-resources:
-  score:
+  compute_measure:
     mem_mb: 4000
     runtime: 25
+  compare_models:
+    mem_mb: 16000
+    runtime: 120
   summarise:
     mem_mb: 16000
     runtime: 60

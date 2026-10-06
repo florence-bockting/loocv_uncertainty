@@ -11,7 +11,6 @@ def read_cells(path):
             n_obs=int(row["n_obs"]),
             beta_t=float(row["beta_t"]),
             out_dev=float(row["out_dev"]),
-            tau2=row["tau2"],
             n_chunks=int(row["n_chunks"]),
         )
         for row in rows
@@ -51,10 +50,10 @@ def cell_params(wildcards):
 
 def chunk_trials(wildcards):
     """First and last trial (1-based, inclusive) of a chunk."""
-    n_trial = config["n_trial"]
+    n_sets_train = config["n_sets_train"]
     n_chunks = CELLS[wildcards.cell]["n_chunks"]
     k = int(wildcards.chunk)
-    return [(k - 1) * n_trial // n_chunks + 1, k * n_trial // n_chunks]
+    return [(k - 1) * n_sets_train // n_chunks + 1, k * n_sets_train // n_chunks]
 
 
 # "overview" is the one-page summary; the others have a paper counterpart.
@@ -87,7 +86,6 @@ def plot_cells():
             params["n_obs"] in sel["n_obs"]
             and params["beta_t"] in [float(b) for b in sel["beta_t"]]
             and params["out_dev"] in [float(o) for o in sel["out_dev"]]
-            and params["tau2"] == str(sel["tau2"])
         ):
             cells.append(cell)
     return cells
@@ -132,9 +130,10 @@ def report_files():
     return files
 
 
-def all_compare_files(wildcards):
+def grid_files(pattern):
+    """`pattern` formatted with every cell and chunk, in the order of CELLS."""
     return [
-        f"{RES}/{cell}/compare/{chunk}.rds"
+        pattern.format(res=RES, cell=cell, chunk=chunk)
         for cell, params in CELLS.items()
         for chunk in range(1, params["n_chunks"] + 1)
     ]

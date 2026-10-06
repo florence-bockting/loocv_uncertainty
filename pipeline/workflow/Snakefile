@@ -1,6 +1,7 @@
 # Simulation grid of Sivula et al. (2025), extended to the loo measures.
-# DAG per cell: data -> fit (per model, chunk) -> score -> compare -> combine
-# Report: combine -> summarise -> plot_* -> side_by_side
+# DAG per cell: generate_data -> fit_posterior_and_loo (per model, chunk)
+#   -> compute_measure
+# Grid: compare_models (all cells) -> summarise -> plot_* -> side_by_side
 # Run from the pipeline folder:
 #   snakemake --profile profiles/local
 #   snakemake --profile profiles/triton
@@ -10,9 +11,9 @@ configfile: "config/small.yaml"
 
 
 include: "rules/common.smk"
-include: "rules/simulate.smk"
-include: "rules/score.smk"
-include: "rules/compare.smk"
+include: "rules/generate_fit_data.smk"
+include: "rules/compute_measure.smk"
+include: "rules/compare_models.smk"
 include: "rules/report.smk"
 
 
@@ -20,8 +21,7 @@ include: "rules/report.smk"
 # Triton asks for jobs of about 30 min or longer.
 localrules:
     all,
-    data,
-    combine,
+    generate_data,
     plot_calibration,
     plot_coverage,
     plot_joint,

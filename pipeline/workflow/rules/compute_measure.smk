@@ -1,4 +1,4 @@
-rule score:
+rule compute_measure:
     input:
         fit=f"{RES}/{{cell}}/fit/{{model}}_{{chunk}}.rds",
         train=f"{RES}/{{cell}}/train.rds",
@@ -13,6 +13,6 @@ rule score:
         "../envs/r.yaml"
     params:
         cell=cell_params,
-        scores=config["scores"],
+        measures=config["measures"],
     script:
         "../scripts/score.R"

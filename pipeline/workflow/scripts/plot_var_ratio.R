@@ -14,7 +14,7 @@ sel <- snakemake@params[["sel"]]
 beta_sel <- unlist_num(sel$beta_t)
 
 tr <- trials[trials$measure == measure & trials$family == family &
-               trials$out_dev == 0 & trials$tau2 == sel$tau2, ]
+               trials$out_dev == 0, ]
 # The paper figure uses the whole n grid, not the plot selection.
 n_sel <- sort(unique(tr$n_obs))
 stopifnot(nrow(tr) > 0)

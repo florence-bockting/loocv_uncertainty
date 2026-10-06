@@ -2,27 +2,24 @@
 cells: config/cells_small.tsv
 results: results/small
 
-n_trial: 100
-n_test: 200
+n_sets_train: 100
+n_sets_test_gaussian: 200
 # test sets per binomial cell; quadrature makes them costlier to score
-n_test_binomial: 50
+n_sets_test_binomial: 50
 # a poisson cell sums over a count grid on top of that quadrature
-n_test_poisson: 20
+n_sets_test_poisson: 20
 seed: 2958319
 
-# pointwise scores computed by rule score
-scores: [elpd, sqe, ae, rps, srps, acc]
-# measures compared by rule compare; each needs its score in `scores`.
-# brier, acc and bacc are computed for the binomial cells only.
+# measures compared by rule compare_models. Rule compute_measure computes the pointwise
+# scores that they need. brier, acc and bacc apply to the binomial cells only.
 measures: [elpd, mlpd, ic, mse, mae, rmse, r2, rps, srps,
            brier, acc, bacc]
 
-# cells shown in the figures (tau2: "none" or a number, as in the cell table)
+# cells shown in the figures
 plot:
   n_obs: [16, 64]
   beta_t: [0.0, 1.0]
   out_dev: [0.0, 20.0]
-  tau2: "none"
   moments_beta_t: [0.0, 1.0]
 
 # Cells of the binomial figures, where out_dev is on the logit scale.

@@ -11,9 +11,7 @@
 # 5. one whole cell: data -> fit -> score -> compare.
 
 source("pipeline/workflow/scripts/lib/dgp.R")
-source("pipeline/workflow/scripts/lib/predictive.R")
 source("pipeline/workflow/scripts/lib/glm.R")
-source("pipeline/workflow/scripts/lib/scores.R")
 source("pipeline/workflow/scripts/lib/measures.R")
 
 ok <- function(label, value, tol) {
@@ -33,7 +31,7 @@ neg_log_post <- function(b, X, y) {
   eta <- drop(X %*% b)
   -sum(y * eta - exp(eta)) + sum(b^2) / (2 * PRIOR_SD^2)
 }
-fit <- fit_poisson(X, y)
+fit <- laplace_approx(X, y, "poisson")
 opt <- optim(numeric(3), neg_log_post, X = X, y = y, method = "BFGS",
              hessian = TRUE, control = list(reltol = 1e-15))
 ok("mode vs optim()", max(abs(fit$beta_hat - opt$par)), 1e-5)
@@ -120,9 +118,9 @@ cell <- list(family = "poisson", n_obs = 40, beta_t = 0.5, out_dev = 2)
 n_trial <- 20
 set.seed(1)
 train <- make_data_family(cell$family, n_trial, cell$n_obs, cell$n_obs,
-                          make_beta(cell$beta_t), cell$out_dev)
+                          make_beta_coeff(cell$beta_t), cell$out_dev)
 test <- pool_sets(make_data_family(cell$family, 50, cell$n_obs, cell$n_obs,
-                                   make_beta(cell$beta_t), cell$out_dev))
+                                   make_beta_coeff(cell$beta_t), cell$out_dev))
 cat(sprintf("%-46s %9.1f\n", "mean count of the test set", mean(test$y)))
 cat(sprintf("%-46s %9d\n", "largest count of the test set", max(test$y)))
 scores <- scores_for_family(SCORES_POISSON, cell$family)
@@ -134,10 +132,12 @@ rows <- lapply(seq_len(n_trial), function(t) {
   per_model <- lapply(c(A = "A", B = "B"), function(model) {
     cols <- model_columns(model, dim(train$X)[2])
     f <- fit_model_family(cell$family, train$X[, cols, t], y_t)
+    loo <- loo_predictive_family(cell$family, train$X[, cols, t], y_t,
+                                 start = f$beta_hat)
     test_i <- pointwise_scores_family(
       cell$family, test$y,
       predict_new_family(cell$family, f, test$X[, cols]), scores)
-    list(loo = pointwise_scores_family(cell$family, y_t, f$loo, scores),
+    list(loo = pointwise_scores_family(cell$family, y_t, loo, scores),
          test = lapply(test_i, mean))
   })
   est <- vapply(measures, loo_difference, numeric(2),

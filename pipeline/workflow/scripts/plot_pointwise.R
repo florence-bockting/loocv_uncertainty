@@ -9,9 +9,10 @@ snakemake@source("lib/measures.R")
 
 a <- lapply(snakemake@input[["a"]], readRDS)
 b <- lapply(snakemake@input[["b"]], readRDS)
-cmp <- do.call(rbind, lapply(snakemake@input[["compare"]], readRDS))
 cell <- snakemake@params[["cell"]]
 cell_name <- snakemake@wildcards[["cell"]]
+cmp <- readRDS(snakemake@input[["trials"]])
+cmp <- cmp[cmp$cell == cell_name, ]
 measures <- measures_pointwise(
   measures_for_family(unlist(snakemake@params[["measures"]]), cell$family))
 
@@ -24,7 +25,7 @@ terms <- sapply(measures, function(m) {
   }))
 }, simplify = FALSE)
 
-# The terms and the compare output must agree: the mean of the terms is the
+# The terms and the compare_models output must agree: the mean of the terms is the
 # LOO estimate on the per-observation scale.
 for (m in measures) {
   rows <- cmp[cmp$measure == m, ]

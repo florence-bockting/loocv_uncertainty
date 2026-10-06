@@ -20,10 +20,6 @@ def load(name):
     return np.loadtxt(os.path.join(TMP, name))
 
 
-with open(os.path.join(TMP, "tau2.txt")) as f:
-    tau2_str = f.read().strip()
-tau2 = None if tau2_str == "none" else float(tau2_str)
-
 y = load("y.txt")
 y_test = load("y_test.txt")
 n_obs = 16
@@ -34,7 +30,7 @@ y_test = y_test.reshape(n_test, n_obs)
 X = load("X.txt").reshape(n_trial, n_obs, -1)
 X_test = load("X_test.txt").reshape(n_test, n_obs, -1)
 
-pr = ProblemRun(n_obs=n_obs, n_obs_max=n_obs, tau2=tau2)
+pr = ProblemRun(n_obs=n_obs, n_obs_max=n_obs, tau2=None)
 py = {
     "loo_a": pr.calc_loo_ti(y, X[:, :, :-1]),
     "loo_b": pr.calc_loo_ti(y, X),
@@ -43,7 +39,6 @@ py = {
     "target_b": pr.calc_elpd_tl(y, X, y_test, X_test).mean(axis=1),
 }
 
-print("tau2 = {}".format(tau2_str))
 for name, value in py.items():
     r = load(name + ".txt").reshape(value.shape)
     print("{:9s} max |R - Python| = {:.1e}".format(

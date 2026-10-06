@@ -11,9 +11,7 @@
 # 6. one whole cell: data -> fit -> score -> compare.
 
 source("pipeline/workflow/scripts/lib/dgp.R")
-source("pipeline/workflow/scripts/lib/predictive.R")
 source("pipeline/workflow/scripts/lib/glm.R")
-source("pipeline/workflow/scripts/lib/scores.R")
 source("pipeline/workflow/scripts/lib/measures.R")
 
 ok <- function(label, value, tol) {
@@ -33,7 +31,7 @@ neg_log_post <- function(b, X, y) {
   eta <- drop(X %*% b)
   -sum(y * eta - log1p(exp(eta))) + sum(b^2) / (2 * PRIOR_SD^2)
 }
-fit <- fit_logistic(X, y)
+fit <- laplace_approx(X, y, "binomial")
 opt <- optim(numeric(3), neg_log_post, X = X, y = y, method = "BFGS",
              hessian = TRUE, control = list(reltol = 1e-15))
 ok("mode vs optim()", max(abs(fit$beta_hat - opt$par)), 1e-5)
@@ -52,7 +50,7 @@ err <- mapply(function(m, s) abs(predictive_prob(m, s) - exact_prob(m, s)),
 ok("quadrature vs integrate()", max(err), 1e-12)
 
 # 3. LOO predictive -----------------------------------------------------
-got <- loo_predictive_binary(X, y)$p
+got <- loo_predictive_binomial(X, y)$p
 brute <- vapply(seq_len(n), function(i) {
   o <- optim(numeric(3), neg_log_post, X = X[-i, ], y = y[-i], method = "BFGS",
              hessian = TRUE, control = list(reltol = 1e-15))
@@ -77,7 +75,7 @@ ok("acc score", max(abs(s$acc - as.numeric((p >= 0.5) == (y == 1)))), 1e-12)
 # 5. bacc ---------------------------------------------------------------
 acc_a <- rbinom(n, 1, 0.7)
 acc_b <- rbinom(n, 1, 0.5)
-got <- stratified_mean_se(acc_a - acc_b, y)
+got <- loo_difference("bacc", list(acc = acc_a), list(acc = acc_b), y)
 classes <- sort(unique(y))
 d_by_class <- lapply(classes, function(cl) (acc_a - acc_b)[y == cl])
 want_est <- mean(vapply(d_by_class, mean, numeric(1)))
@@ -86,7 +84,7 @@ want_se <- sqrt(sum(vapply(d_by_class, function(d) var(d) / length(d),
 ok("bacc estimate", abs(got[1] - want_est), 1e-12)
 ok("bacc standard error", abs(got[2] - want_se), 1e-12)
 
-# The guards of finite_se() and stratified_mean_se(). Each case returns NA,
+# The guards of finite_se() and bacc_strata_ok(). Each case returns NA,
 # so that summarise.R drops the trial instead of counting an SE of zero.
 is_na <- function(x) as.numeric(!all(is.na(x)))
 same <- list(acc = c(1, 1, 0, 1))
@@ -108,9 +106,9 @@ cell <- list(family = "binomial", n_obs = 40, beta_t = 0.5, out_dev = 5)
 n_trial <- 20
 set.seed(1)
 train <- make_data_family(cell$family, n_trial, cell$n_obs, cell$n_obs,
-                          make_beta(cell$beta_t), cell$out_dev)
+                          make_beta_coeff(cell$beta_t), cell$out_dev)
 test <- pool_sets(make_data_family(cell$family, 200, cell$n_obs, cell$n_obs,
-                                   make_beta(cell$beta_t), cell$out_dev))
+                                   make_beta_coeff(cell$beta_t), cell$out_dev))
 scores <- scores_for_family(SCORES_BINOMIAL, cell$family)
 measures <- measures_for_family(names(MEASURE_SCORE), cell$family)
 classes <- sort(unique(test$y))
@@ -119,11 +117,13 @@ rows <- lapply(seq_len(n_trial), function(t) {
   y_t <- train$y[, t]
   per_model <- lapply(c(A = "A", B = "B"), function(model) {
     cols <- model_columns(model, dim(train$X)[2])
-    f <- fit_model_binary(train$X[, cols, t], y_t)
+    f <- fit_model_binomial(train$X[, cols, t], y_t)
+    loo <- loo_predictive_binomial(train$X[, cols, t], y_t,
+                                   start = f$beta_hat)
     test_i <- pointwise_scores_binary(test$y,
-                                      predict_new_binary(f, test$X[, cols]),
+                                      predict_new_binomial(f, test$X[, cols]),
                                       scores)
-    list(loo = pointwise_scores_binary(y_t, f$loo, scores),
+    list(loo = pointwise_scores_binary(y_t, loo, scores),
          test = lapply(test_i, mean),
          by_class = lapply(test_i, function(v) {
            vapply(classes, function(cl) mean(v[test$y == cl]), numeric(1))

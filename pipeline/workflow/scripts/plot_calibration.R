@@ -22,7 +22,7 @@ for (b_i in seq_along(beta_sel)) {
   for (o_i in seq_along(out_sel)) {
     for (n_i in seq_along(n_sel)) {
       rows <- cell_rows(trials, measure, n_sel[n_i], beta_sel[b_i],
-                        out_sel[o_i], sel$tau2, family)
+                        out_sel[o_i], family)
       p <- pit(rows)
       n_na <- sum(is.na(p))
       p <- p[!is.na(p)]

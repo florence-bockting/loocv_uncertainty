@@ -18,8 +18,7 @@ signed <- isTRUE(snakemake@params[["signed"]])
 beta_sel <- unlist_num(sel$beta_t)
 out_sel <- unlist_num(sel$out_dev)
 
-tr <- trials[trials$measure == measure & trials$family == family &
-               trials$tau2 == sel$tau2, ]
+tr <- trials[trials$measure == measure & trials$family == family, ]
 n_sel <- sort(unique(tr$n_obs))
 stopifnot(nrow(tr) > 0)
 

@@ -37,13 +37,12 @@ greys <- function(k) {
 }
 
 # Trials of one cell, selected by its parameters.
-cell_rows <- function(trials, measure, n_obs, beta_t, out_dev, tau2,
+cell_rows <- function(trials, measure, n_obs, beta_t, out_dev,
                       family = "gaussian") {
   trials[trials$measure == measure & trials$family == family &
            trials$n_obs == n_obs &
            abs(trials$beta_t - beta_t) < 1e-12 &
-           abs(trials$out_dev - out_dev) < 1e-12 &
-           trials$tau2 == tau2, ]
+           abs(trials$out_dev - out_dev) < 1e-12, ]
 }
 
 # Probability integral transform of the target under N(estimate, SE).

@@ -100,7 +100,7 @@ rule plot_pointwise:
     input:
         a=cell_files("{res}/{cell}/score/A_{chunk}.rds"),
         b=cell_files("{res}/{cell}/score/B_{chunk}.rds"),
-        compare=cell_files("{res}/{cell}/compare/{chunk}.rds"),
+        trials=f"{RES}/trials.rds",
     output:
         f"{RES}/figs/pointwise_{{cell}}.pdf",
     log:

@@ -24,9 +24,9 @@ beta_sel <- unlist_num(sel$beta_t)
 labels <- measure_labels(measure)
 
 tr <- trials[trials$measure == measure & trials$family == family &
-               trials$out_dev == 0 & trials$tau2 == sel$tau2, ]
+               trials$out_dev == 0, ]
 mo <- mom[mom$measure == measure & mom$family == family &
-            mom$out_dev == 0 & mom$tau2 == sel$tau2, ]
+            mom$out_dev == 0, ]
 stopifnot(nrow(tr) > 0)
 n_all <- sort(unique(tr$n_obs))
 n_dropped <- sum(!is.finite(tr$se) | !is.finite(tr$estimate) |

@@ -2,16 +2,17 @@
 # for one chunk of trials.
 snakemake@source("lib/log.R")
 start_log(snakemake@log[[1]])
-snakemake@source("lib/predictive.R")
 snakemake@source("lib/glm.R")
-snakemake@source("lib/scores.R")
+snakemake@source("lib/measures.R")
 
 fit <- readRDS(snakemake@input[["fit"]])
 train <- readRDS(snakemake@input[["train"]])
 test <- readRDS(snakemake@input[["test"]])
 cell <- snakemake@params[["cell"]]
-scores <- scores_for_family(unlist(snakemake@params[["scores"]]),
-                            cell$family)
+# The scores that the measures of the family are computed from.
+measures <- measures_for_family(unlist(snakemake@params[["measures"]]),
+                                cell$family)
+scores <- unique(unname(MEASURE_SCORE[measures]))
 cols <- model_columns(snakemake@wildcards[["model"]], ncol(test$X))
 X_test <- test$X[, cols, drop = FALSE]
 binary <- cell$family == "binomial"
@@ -32,18 +33,32 @@ test_by_class <- if (binary) {
 
 start <- Sys.time()
 for (i in seq_len(k)) {
-  y <- train$y[, fit$trials[i]]
-  loo_i <- pointwise_scores_family(cell$family, y, fit$fits[[i]]$loo, scores)
+  loo_i <- pointwise_scores_family(
+    family = cell$family,
+    y = train$y[, fit$trials[i]],
+    pred = fit$loos[[i]],
+    scores = scores
+  )
   test_i <- pointwise_scores_family(
-    cell$family, test$y,
-    predict_new_family(cell$family, fit$fits[[i]], X_test), scores)
+    family = cell$family,
+    y = test$y,
+    pred = predict_new_family(
+      family = cell$family,
+      fit = fit$fits[[i]],
+      X_new = X_test
+    ),
+    scores = scores
+  )
+
   for (s in scores) {
     loo[[s]][, i] <- loo_i[[s]]
     test_mean[[s]][i] <- mean(test_i[[s]])
     if (binary) {
-      test_by_class[[s]][, i] <- vapply(classes,
-                                        function(cl) mean(test_i[[s]][test$y == cl]),
-                                        numeric(1))
+      test_by_class[[s]][, i] <- vapply(
+        classes,
+        function(cl) mean(test_i[[s]][test$y == cl]),
+        numeric(1)
+      )
     }
   }
 }
