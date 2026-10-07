@@ -1,0 +1,6 @@
+# The workflow scripts use base R only.
+channels:
+  - conda-forge
+  - nodefaults
+dependencies:
+  - r-base >=4.3
