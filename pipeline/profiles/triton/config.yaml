@@ -35,3 +35,6 @@ set-resources:
   summarise:
     mem_mb: 16000
     runtime: 60
+  fit_posterior_and_loo:
+    mem_mb: 4000
+    runtime: 120
