@@ -1,4 +1,5 @@
 import csv
+import math
 
 
 def read_cells(path):
@@ -11,6 +12,8 @@ def read_cells(path):
             n_obs=int(row["n_obs"]),
             beta_t=float(row["beta_t"]),
             out_dev=float(row["out_dev"]),
+            # Inf: normal covariate; finite: t covariate (gaussian only)
+            x_df=float(row.get("x_df", "Inf")),
             n_chunks=int(row["n_chunks"]),
         )
         for row in rows
@@ -22,6 +25,10 @@ RES = config["results"]
 N_OBS_MAX = max(cell["n_obs"] for cell in CELLS.values())
 MODELS = ["A", "B"]
 FAMILIES = sorted({cell["family"] for cell in CELLS.values()})
+# Degrees of freedom of the t covariate in the grid; the normal is not listed.
+X_DFS = sorted(
+    {cell["x_df"] for cell in CELLS.values() if math.isfinite(cell["x_df"])}
+)
 # Mirror MEASURES_BINARY and MEASURES_GAUSSIAN in
 # workflow/scripts/lib/measures.R.
 MEASURES_BINARY = ["brier", "acc", "bacc"]
@@ -45,6 +52,8 @@ wildcard_constraints:
     chunk=r"\d+",
     measure=r"[a-z0-9]+",
     fig=r"[a-z_]+",
+    # empty for the normal covariate, "_t<df>" for a t covariate
+    xdf=r"(_t[0-9.]+)?",
 
 
 def cell_params(wildcards):
@@ -60,8 +69,7 @@ def chunk_trials(wildcards):
 
 
 # "overview" is the one-page summary; the others have a paper counterpart.
-FIGS = [
-    "overview",
+PAPER_FIGS = [
     "calibration",
     "joint",
     "moments",
@@ -69,6 +77,16 @@ FIGS = [
     "err",
     "errdirection",
 ]
+FIGS = ["overview"] + PAPER_FIGS
+
+
+def x_df_param(wildcards):
+    """x_df of a figure: Inf for the normal covariate."""
+    return float(wildcards.xdf[2:]) if wildcards.xdf else math.inf
+
+
+def xdf_suffix(x_df):
+    return f"_t{x_df:g}"
 
 
 def plot_selection(wildcards):
@@ -83,6 +101,8 @@ def plot_cells():
     """The cells of the plot selection, for the figures of a single cell."""
     cells = []
     for cell, params in CELLS.items():
+        if math.isfinite(params["x_df"]):
+            continue
         sel = dict(config["plot"])
         sel.update(config.get(f"plot_{params['family']}", {}))
         if (
@@ -113,12 +133,19 @@ def paper_figure(wildcards):
 
 def report_files():
     """Figures for every measure, plus the side-by-side pages if the config
-    names the paper figures."""
+    names the paper figures. A t covariate gets its own paper figures; all
+    other figures show the normal covariate only."""
     files = [
         f"{RES}/figs/{fig}_{family}_{measure}.pdf"
         for fig in FIGS
         for family in FAMILIES
         for measure in family_measures(family)
+    ]
+    files += [
+        f"{RES}/figs/{fig}_gaussian_{measure}{xdf_suffix(x_df)}.pdf"
+        for fig in PAPER_FIGS
+        for measure in family_measures("gaussian")
+        for x_df in X_DFS
     ]
     files += [f"{RES}/figs/pointwise_{cell}.pdf" for cell in plot_cells()]
     files += [

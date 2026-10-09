@@ -36,6 +36,14 @@ greys <- function(k) {
   grDevices::grey(seq(1 - 0.3, 0, length.out = k) * 0.95)
 }
 
+# Rows of one covariate distribution: x_df = Inf is the normal covariate,
+# a finite x_df the t covariate. A table without an x_df column comes from
+# a run before the t covariate and holds normal cells only.
+select_x_df <- function(d, x_df) {
+  if (is.null(d$x_df)) d$x_df <- Inf
+  d[d$x_df == x_df, ]
+}
+
 # Trials of one cell, selected by its parameters.
 cell_rows <- function(trials, measure, n_obs, beta_t, out_dev,
                       family = "gaussian") {

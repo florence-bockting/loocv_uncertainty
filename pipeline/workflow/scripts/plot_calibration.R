@@ -5,6 +5,7 @@ start_log(snakemake@log[[1]])
 snakemake@source("lib/plot.R")
 
 trials <- readRDS(snakemake@input[[1]])
+trials <- select_x_df(trials, snakemake@params[["x_df"]])
 measure <- snakemake@wildcards[["measure"]]
 family <- snakemake@wildcards[["family"]]
 sel <- snakemake@params[["sel"]]
@@ -56,6 +57,8 @@ for (b_i in seq_along(beta_sel)) {
 }
 mtext(bquote(p(widehat(.(as.name(measure))) < .(as.name(measure)))),
       side = 1, outer = TRUE, line = 2.5)
-mtext(sprintf("%s: normal approximation", measure), side = 3, outer = TRUE,
-      line = 2.5, font = 2)
+x_df <- snakemake@params[["x_df"]]
+mtext(sprintf("%s: normal approximation%s", measure,
+              if (is.finite(x_df)) sprintf(", covariate t(%g)", x_df) else ""),
+      side = 3, outer = TRUE, line = 2.5, font = 2)
 dev.off()

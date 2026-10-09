@@ -16,6 +16,8 @@ snakemake@source("lib/plot.R")
 
 trials <- readRDS(snakemake@input[["trials"]])
 mom <- readRDS(snakemake@input[["moments"]])
+trials <- select_x_df(trials, snakemake@params[["x_df"]])
+mom <- select_x_df(mom, snakemake@params[["x_df"]])
 measure <- snakemake@wildcards[["measure"]]
 family <- snakemake@wildcards[["family"]]
 sel <- snakemake@params[["sel"]]

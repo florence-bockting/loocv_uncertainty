@@ -18,13 +18,14 @@ rule plot_calibration:
     input:
         f"{RES}/trials.rds",
     output:
-        f"{RES}/figs/calibration_{{family}}_{{measure}}.pdf",
+        f"{RES}/figs/calibration_{{family}}_{{measure}}{{xdf}}.pdf",
     log:
-        f"{RES}/logs/plot_calibration_{{family}}_{{measure}}.log",
+        f"{RES}/logs/plot_calibration_{{family}}_{{measure}}{{xdf}}.log",
     conda:
         "../envs/report.yaml"
     params:
         sel=plot_selection,
+        x_df=x_df_param,
     script:
         "../scripts/plot_calibration.R"
 
@@ -47,6 +48,7 @@ rule plot_coverage:
     params:
         families=FAMILIES,
         n_bins=30,
+        x_df=math.inf,
         target_cov=0.9,
     script:
         "../scripts/plot_coverage.R"
@@ -56,13 +58,14 @@ rule plot_joint:
     input:
         f"{RES}/trials.rds",
     output:
-        f"{RES}/figs/joint_{{family}}_{{measure}}.pdf",
+        f"{RES}/figs/joint_{{family}}_{{measure}}{{xdf}}.pdf",
     log:
-        f"{RES}/logs/plot_joint_{{family}}_{{measure}}.log",
+        f"{RES}/logs/plot_joint_{{family}}_{{measure}}{{xdf}}.log",
     conda:
         "../envs/report.yaml"
     params:
         sel=plot_selection,
+        x_df=x_df_param,
     script:
         "../scripts/plot_joint.R"
 
@@ -71,13 +74,14 @@ rule plot_moments:
     input:
         f"{RES}/moments.rds",
     output:
-        f"{RES}/figs/moments_{{family}}_{{measure}}.pdf",
+        f"{RES}/figs/moments_{{family}}_{{measure}}{{xdf}}.pdf",
     log:
-        f"{RES}/logs/plot_moments_{{family}}_{{measure}}.log",
+        f"{RES}/logs/plot_moments_{{family}}_{{measure}}{{xdf}}.log",
     conda:
         "../envs/report.yaml"
     params:
         sel=plot_selection,
+        x_df=x_df_param,
     script:
         "../scripts/plot_moments.R"
 
@@ -118,13 +122,14 @@ rule plot_var_ratio:
     input:
         f"{RES}/trials.rds",
     output:
-        f"{RES}/figs/var_ratio_{{family}}_{{measure}}.pdf",
+        f"{RES}/figs/var_ratio_{{family}}_{{measure}}{{xdf}}.pdf",
     log:
-        f"{RES}/logs/plot_var_ratio_{{family}}_{{measure}}.log",
+        f"{RES}/logs/plot_var_ratio_{{family}}_{{measure}}{{xdf}}.log",
     conda:
         "../envs/report.yaml"
     params:
         sel=plot_selection,
+        x_df=x_df_param,
     script:
         "../scripts/plot_var_ratio.R"
 
@@ -133,13 +138,14 @@ rule plot_err:
     input:
         f"{RES}/trials.rds",
     output:
-        f"{RES}/figs/err_{{family}}_{{measure}}.pdf",
+        f"{RES}/figs/err_{{family}}_{{measure}}{{xdf}}.pdf",
     log:
-        f"{RES}/logs/plot_err_{{family}}_{{measure}}.log",
+        f"{RES}/logs/plot_err_{{family}}_{{measure}}{{xdf}}.log",
     conda:
         "../envs/report.yaml"
     params:
         sel=plot_selection,
+        x_df=x_df_param,
         signed=False,
     script:
         "../scripts/plot_err.R"
@@ -149,13 +155,14 @@ rule plot_errdirection:
     input:
         f"{RES}/trials.rds",
     output:
-        f"{RES}/figs/errdirection_{{family}}_{{measure}}.pdf",
+        f"{RES}/figs/errdirection_{{family}}_{{measure}}{{xdf}}.pdf",
     log:
-        f"{RES}/logs/plot_errdirection_{{family}}_{{measure}}.log",
+        f"{RES}/logs/plot_errdirection_{{family}}_{{measure}}{{xdf}}.log",
     conda:
         "../envs/report.yaml"
     params:
         sel=plot_selection,
+        x_df=x_df_param,
         signed=True,
     script:
         "../scripts/plot_err.R"
@@ -173,5 +180,6 @@ rule plot_overview:
         "../envs/report.yaml"
     params:
         sel=plot_selection,
+        x_df=math.inf,
     script:
         "../scripts/plot_overview.R"

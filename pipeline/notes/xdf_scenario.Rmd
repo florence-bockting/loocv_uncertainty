@@ -1,0 +1,224 @@
+---
+title: "Heavy-tailed covariates: the t scenario"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+params:
+  # Results folder and cell table, relative to the pipeline folder.
+  results: results/paper
+  cells: config/cells_paper.tsv
+  config: config/paper.yaml
+---
+
+```{r root, include = FALSE}
+# Paths in this file are relative to the pipeline folder.
+knitr::opts_knit$set(root.dir = "..")
+```
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+```{r data}
+cells <- utils::read.delim(params$cells)
+cfg <- yaml::read_yaml(params$config)
+x_dfs <- sort(unique(cells$x_df), decreasing = TRUE)
+x_dfs_t <- x_dfs[is.finite(x_dfs)]
+```
+
+This note adds one factor to the paper grid of Sivula et al. (2025): the
+distribution of the covariates. In the paper the covariates are standard
+normal. Here they are also standard t, with degrees of freedom from
+`r max(x_dfs_t)` down to 1 (Cauchy). Everything else stays as in the paper:
+the gaussian family, the measure elpd, and the cells of Fig. 5 and Fig. 6.
+
+Render it from the pipeline folder:
+
+```sh
+Rscript -e 'rmarkdown::render("notes/xdf_scenario.Rmd", output_dir = ".")'
+```
+
+# Data generating process
+
+`make_data_gaussian()` in `workflow/scripts/lib/dgp.R` draws one data set
+of $n$ observations as
+
+$$
+y_i = \beta_0 + \beta_1 x_{i1} + \beta_t x_{i2} + \varepsilon_i,
+\qquad
+\varepsilon_i \sim \mathrm{N}(\mu_i, \sigma^2),
+\qquad
+\beta = (0, 1, \beta_t), \quad \sigma^2 = 1.
+$$
+
+Model A omits $x_{2}$. Model B includes it. Both are normal linear
+regressions with the exact LOO predictive. The quantity of interest is the
+elpd difference $\mathrm{elpd}_A - \mathrm{elpd}_B$.
+
+## Covariates
+
+The covariates $x_{ij}$ are independent. With $\nu$ = `x_df` they are
+
+$$
+x_{ij} = \frac{z_{ij}}{\sqrt{w_{ij} / \nu}},
+\qquad
+z_{ij} \sim \mathrm{N}(0, 1),
+\qquad
+w_{ij} = F^{-1}_{\chi^2_\nu}(u_{ij}),
+\quad u_{ij} \sim \mathrm{U}(0, 1),
+$$
+
+so $x_{ij} \sim t_\nu$. For $\nu = \infty$ the denominator is 1, and
+$x_{ij} = z_{ij}$ is the normal covariate of the paper.
+
+- The t is not rescaled to unit variance. Its variance is
+  $\nu / (\nu - 2)$, which is infinite for $\nu \le 2$.
+- $z$ and $\varepsilon$ are drawn first, as in the paper. $u$ is drawn last,
+  and only for a finite $\nu$. So the normal cells keep the random numbers
+  of the paper run.
+- All t cells share the same $z$, $\varepsilon$ and $u$. Two cells that
+  differ only in $\nu$ differ only in the tails of the covariates. This
+  gives common random numbers across $\nu$.
+
+```{r densities, fig.width = 7, fig.height = 3.2, fig.cap = "Density of the covariate, linear and log scale."}
+x <- seq(-8, 8, length.out = 801)
+cols <- grDevices::hcl.colors(length(x_dfs), "viridis")
+dens <- sapply(x_dfs, function(df) if (is.finite(df)) dt(x, df) else dnorm(x))
+lab <- ifelse(is.finite(x_dfs), paste0("t(", x_dfs, ")"), "normal")
+par(mfrow = c(1, 2), mar = c(4, 4, 1, 1), mgp = c(2.2, 0.6, 0), bty = "l")
+matplot(x, dens, type = "l", lty = 1, col = cols, xlim = c(-5, 5),
+        xlab = "x", ylab = "density")
+legend("topright", legend = lab, col = cols, lty = 1, bty = "n", cex = 0.7)
+matplot(x, dens, type = "l", lty = 1, col = cols, log = "y",
+        xlab = "x", ylab = "density (log)")
+```
+
+## Outlier
+
+As in the paper, the first observation gets the mean shift
+
+$$
+\mu_1 = \Delta \sqrt{\sigma^2 + \lVert \beta \rVert^2},
+\qquad \mu_i = 0 \text{ for } i > 1,
+$$
+
+with $\Delta$ = `out_dev`. The scale $\sqrt{\sigma^2 + \lVert\beta\rVert^2}$
+is the SD of $y$ for a normal covariate. It is kept for the t covariate, so
+the outlier has the same size in every cell.
+
+## Test sets
+
+The test sets come from the same DGP as the training sets, with the same
+$\nu$. The target is the elpd difference on
+`r cfg$n_sets_test_gaussian` pooled test sets of size $n$.
+
+# Simulation scenarios
+
+```{r grid}
+fmt <- function(v) paste(sort(unique(v)), collapse = ", ")
+knitr::kable(data.frame(
+  factor = c("n", "beta_t", "out_dev", "x_df"),
+  levels = c(fmt(cells$n_obs), fmt(cells$beta_t), fmt(cells$out_dev),
+             paste(c(fmt(x_dfs_t), "Inf (normal)"), collapse = ", "))
+), col.names = c("Factor", "Levels"))
+```
+
+- The full product of the factors gives `r nrow(cells)` cells.
+  `r sum(is.finite(cells$x_df))` of them have a t covariate.
+- Each cell has `r cfg$n_sets_train` trials (training sets).
+- A t cell has the name of its normal cell plus `_t<df>`, for example
+  `n32_b0_o0_t1`.
+
+The figures for the normal covariate keep their names,
+`{fig}_gaussian_elpd.pdf`. The figures for a t covariate are
+`{fig}_gaussian_elpd_t<df>.pdf`. Each figure shows one $\nu$.
+
+# Results
+
+Each section shows one paper figure. Each tab shows one covariate
+distribution, from the normal to the Cauchy.
+
+```{r png}
+# The figures are PDFs. pdftoppm turns the first page into a PNG.
+png_dir <- file.path(params$results, "figs", "png")
+dir.create(png_dir, showWarnings = FALSE, recursive = TRUE)
+to_png <- function(fig, df) {
+  stem <- paste0(fig, "_gaussian_elpd", if (is.finite(df)) paste0("_t", df))
+  pdf <- file.path(params$results, "figs", paste0(stem, ".pdf"))
+  png <- file.path(png_dir, stem)
+  if (!file.exists(pdf)) return(NA_character_)
+  system2("pdftoppm", c("-png", "-r", "110", "-singlefile", shQuote(pdf),
+                        shQuote(png)))
+  # Absolute, because pandoc resolves paths from the notes folder.
+  normalizePath(paste0(png, ".png"))
+}
+
+tabs <- function(fig) {
+  for (df in x_dfs) {
+    cat("###", if (is.finite(df)) sprintf("t(%g)", df) else "normal", "\n\n")
+    path <- to_png(fig, df)
+    if (is.na(path)) cat("Figure not found.\n\n") else
+      cat(sprintf("![](%s){width=100%%}\n\n", path))
+  }
+}
+```
+
+## Calibration {.tabset}
+
+PIT histograms of the normal approximation, as Fig. 6 of the paper (normal
+column). One column per $n$. For each $\beta_t$ one row without and one
+with the outlier. A calibrated SE gives a flat histogram inside the 99 %
+band.
+
+```{r calibration, results = "asis"}
+tabs("calibration")
+```
+
+## Joint distribution {.tabset}
+
+The LOO estimate against the target, without the outlier, as Fig. 5 of the
+paper. Points on the green diagonal are estimated without error.
+
+```{r joint, results = "asis"}
+tabs("joint")
+```
+
+## Moments {.tabset}
+
+Mean/SD and skewness of the estimate, the target and the error against
+$n$, without the outlier, as Fig. 9 of the paper. Bands are 95 %
+Bayesian-bootstrap intervals.
+
+```{r moments, results = "asis"}
+tabs("moments")
+```
+
+## SE ratio {.tabset}
+
+The stated SE divided by the actual SD of the LOO error, without the
+outlier, as `simulated/plot_all__var_ratioi_n_b.py`. A ratio below 1 means
+that the SE is too small.
+
+```{r var_ratio, results = "asis"}
+tabs("var_ratio")
+```
+
+## Error {.tabset}
+
+The LOO error in units of its own SD, as `simulated/plot_all__err_n_b_both.py`.
+The short line is the mean.
+
+```{r err, results = "asis"}
+tabs("err")
+```
+
+## Error direction {.tabset}
+
+The error times the sign of the target, as
+`simulated/plot_all__errdirection_n_b_both.py`. A positive value means that
+the estimate favours the better model too strongly.
+
+```{r errdirection, results = "asis"}
+tabs("errdirection")
+```

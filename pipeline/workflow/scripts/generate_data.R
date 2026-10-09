@@ -13,7 +13,8 @@ train <- make_data_family(
         n_obs = cell$n_obs,
         n_obs_max = snakemake@params[["n_obs_max"]],
         beta = beta,
-        out_dev = cell$out_dev
+        out_dev = cell$out_dev,
+        x_df = cell$x_df
 )
 # Each family has its own number of test sets, n_sets_test_<family>.
 # A binomial cell scores each test point by quadrature, which is far more
@@ -29,7 +30,8 @@ test <- pool_sets(make_data_family(
         n_obs = cell$n_obs,
         n_obs_max = snakemake@params[["n_obs_max"]],
         beta = beta,
-        out_dev = cell$out_dev
+        out_dev = cell$out_dev,
+        x_df = cell$x_df
 ))
 
 saveRDS(train, snakemake@output[["train"]], compress = FALSE)

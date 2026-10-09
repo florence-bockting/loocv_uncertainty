@@ -40,11 +40,14 @@ GRIDS = {
     ),
     # cells of Fig. 5 and Fig. 6 in the paper: a reproduction of Sivula et
     # al. (2025), so the gaussian family only. small and full extend it.
+    # x_df adds a t covariate with these degrees of freedom, from Cauchy (1)
+    # towards the normal (inf, the paper's cells).
     "config/cells_paper.tsv": dict(
         gaussian=dict(
             n_obs=[32, 128, 512],
             beta_t=[0.0, 0.2, 1.0],
             out_dev=[0.0, 20.0],
+            x_df=[math.inf, 1, 2, 3, 5, 10, 30],
             obs_per_chunk=64,
         ),
     ),
@@ -72,24 +75,34 @@ GRIDS = {
 }
 
 # Cell names of the gaussian family are unprefixed, so that the cells of
-# earlier runs keep their names and their results.
+# earlier runs keep their names and their results. For the same reason only
+# a t covariate (finite x_df) adds a suffix to the name.
 PREFIX = {"gaussian": "", "binomial": "bin_", "poisson": "pois_"}
 
 
 def fmt(x):
-    return x if isinstance(x, str) else f"{x:g}"
+    if isinstance(x, str):
+        return x
+    return "Inf" if math.isinf(x) else f"{x:g}"
 
 
 for path, families in GRIDS.items():
     with open(path, "w", newline="") as f:
         writer = csv.writer(f, delimiter="\t")
         writer.writerow(
-            ["cell", "family", "n_obs", "beta_t", "out_dev", "n_chunks"]
+            ["cell", "family", "n_obs", "beta_t", "out_dev", "x_df", "n_chunks"]
         )
         for family, grid in families.items():
-            for n, b, o in itertools.product(
-                grid["n_obs"], grid["beta_t"], grid["out_dev"]
+            for d, n, b, o in itertools.product(
+                grid.get("x_df", [math.inf]),
+                grid["n_obs"],
+                grid["beta_t"],
+                grid["out_dev"],
             ):
                 cell = f"{PREFIX[family]}n{n}_b{fmt(b)}_o{fmt(o)}"
+                if not math.isinf(d):
+                    cell += f"_t{fmt(d)}"
                 n_chunks = math.ceil(n / grid["obs_per_chunk"])
-                writer.writerow([cell, family, n, fmt(b), fmt(o), n_chunks])
+                writer.writerow(
+                    [cell, family, n, fmt(b), fmt(o), fmt(d), n_chunks]
+                )

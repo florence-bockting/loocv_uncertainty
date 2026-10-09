@@ -6,6 +6,7 @@ start_log(snakemake@log[[1]])
 snakemake@source("lib/plot.R")
 
 mom <- readRDS(snakemake@input[[1]])
+mom <- select_x_df(mom, snakemake@params[["x_df"]])
 measure <- snakemake@wildcards[["measure"]]
 family <- snakemake@wildcards[["family"]]
 sel <- snakemake@params[["sel"]]

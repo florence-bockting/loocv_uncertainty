@@ -3,18 +3,32 @@
 #   y = X beta + eps,  X[, -1] ~ N(0, 1),  eps ~ N(mu_d, sigma2_d),
 # where the first n_obs_out observations get the outlier mean
 # out_dev * sqrt(sigma2_d + sum(beta^2)).
+#
+# Extension (gaussian family only): with a finite x_df, the covariates
+# X[, -1] are standard t with x_df degrees of freedom, from Cauchy (1)
+# towards the normal (Inf). The t is not rescaled, because its variance is
+# infinite for x_df <= 2; the outlier mean keeps the formula above.
 
 # Draws n_sets data sets of size n_obs_max and keeps the first n_obs rows,
 # so that cells with different n_obs share the same random numbers.
 # Returns X as an [n_obs, n_dim, n_sets] array and y as an [n_obs, n_sets]
 # matrix.
+#
+# The t covariate is z / sqrt(qchisq(u, x_df) / x_df). z and eps are drawn
+# as for the normal covariate, and u is drawn last, only for a finite x_df.
+# So the normal cells keep their random numbers, and all t cells share the
+# same z, eps and u: they differ only in x_df.
 make_data_gaussian <- function(n_sets, n_obs, n_obs_max, beta, out_dev,
-                      n_obs_out = 1, sigma2_d = 1) {
+                      n_obs_out = 1, sigma2_d = 1, x_df = Inf) {
   n_dim <- length(beta)
   x <- array(rnorm(n_obs_max * (n_dim - 1) * n_sets),
              c(n_obs_max, n_dim - 1, n_sets))
   eps <- matrix(rnorm(n_obs_max * n_sets, sd = sqrt(sigma2_d)),
                 n_obs_max, n_sets)
+  if (is.finite(x_df)) {
+    u <- runif(length(x))
+    x <- x / sqrt(qchisq(u, x_df) / x_df)
+  }
   mu_d <- numeric(n_obs_max)
   mu_d[seq_len(n_obs_out)] <- out_dev * sqrt(sigma2_d + sum(beta^2))
   eps <- eps + mu_d
@@ -94,10 +108,14 @@ make_data_poisson <- function(n_sets, n_obs, n_obs_max, beta, out_dev,
   list(X = X, y = y)
 }
 
-# Draws the data of one cell, for any family.
-make_data_family <- function(family, ...) {
+# Draws the data of one cell, for any family. Only the gaussian family has
+# the t covariate, so x_df must be Inf for the others.
+make_data_family <- function(family, ..., x_df = Inf) {
+  if (family != "gaussian" && is.finite(x_df)) {
+    stop("x_df is for the gaussian family only, not ", family)
+  }
   switch(family,
-    gaussian = make_data_gaussian(...),
+    gaussian = make_data_gaussian(..., x_df = x_df),
     binomial = make_data_binomial(...),
     poisson = make_data_poisson(...),
     stop("unknown family: ", family)
