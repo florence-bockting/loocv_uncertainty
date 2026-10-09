@@ -94,6 +94,73 @@ matplot(x, dens, type = "l", lty = 1, col = cols, log = "y",
         xlab = "x", ylab = "density (log)")
 ```
 
+## Moments of the covariate
+
+A moment of order $k$ of $t_\nu$ is finite only for $k < \nu$. The elpd
+difference depends on $x_2$ and on $x_2^2$ (see below), so four moments
+matter:
+
+| Quantity | Finite for | Value |
+| :-- | :-- | :-- |
+| $\mathrm{E}[x_2]$ | $\nu > 1$ | 0 |
+| $\mathrm{Var}[x_2] = \mathrm{E}[x_2^2]$ | $\nu > 2$ | $\nu / (\nu - 2)$ |
+| $\mathrm{Var}[x_2^2]$ | $\nu > 4$ | $\dfrac{3\nu^2}{(\nu - 2)(\nu - 4)} - \left(\dfrac{\nu}{\nu - 2}\right)^2$ |
+
+```{r moments-table}
+mom_x <- function(df) {
+  var_x <- if (df > 2) df / (df - 2) else Inf
+  var_x2 <- if (df > 4) 3 * df^2 / ((df - 2) * (df - 4)) - var_x^2 else Inf
+  c(mean_x = if (df > 1) "0" else "undefined",
+    var_x = format(var_x, digits = 3),
+    var_x2 = format(var_x2, digits = 3))
+}
+tab <- t(sapply(x_dfs, function(df) if (is.finite(df)) mom_x(df) else
+  c(mean_x = "0", var_x = "1", var_x2 = "2")))
+knitr::kable(data.frame(
+  covariate = ifelse(is.finite(x_dfs), paste0("t(", x_dfs, ")"), "normal"),
+  tab
+), col.names = c("Covariate", "E[x2]", "Var[x2]", "Var[x2^2]"))
+```
+
+Why $x_2^2$ matters: model A omits $\beta_t x_2$, so this term is part of
+its residual. The pointwise log predictive density of model A is then about
+
+$$
+\log p_A(y_i) \approx -\tfrac{1}{2}\log(2\pi\hat\sigma_A^2)
+  - \frac{(\beta_t x_{i2} + \varepsilon_i)^2}{2\hat\sigma_A^2},
+$$
+
+and the pointwise elpd difference contains $\beta_t^2 x_{i2}^2$ and
+$\beta_t x_{i2} \varepsilon_i$. The normal approximation sums these terms
+and uses $\widehat{\mathrm{SE}} = \sqrt{n}\,\mathrm{sd}(\text{pointwise})$.
+This relies on the central limit theorem, so it needs a finite variance of
+the pointwise terms, that is $\nu > 4$.
+
+The expected pattern, for $\beta_t > 0$:
+
+- **$\nu \ge 5$:** all three moments are finite. The covariate behaves
+  like the normal one, only with more spread.
+- **$\nu = 3$:** $\mathrm{Var}[x_2]$ is finite, but
+  $\mathrm{Var}[x_2^2]$ is infinite. A few points with large $|x_2|$
+  dominate the sum. The sample SD underestimates the spread, so the SE is
+  too small. The effect is moderate, because $\mathrm{E}[x_2^2]$ is still
+  finite.
+- **$\nu = 1$ (Cauchy):** $\mathrm{E}[x_2]$ is undefined and
+  $\mathrm{E}[x_2^2]$ is infinite. Often one point dominates the sum. A
+  larger $n$ does not help, because a larger sample has a more extreme
+  maximum.
+
+For $\beta_t = 0$ model A misses nothing, so $x_2^2$ is not in the
+residual. But a point with a large $|x_2|$ has a leverage near 1 in model
+B, and its LOO term in model B is then extreme.
+
+The outlier shift $\Delta \sqrt{\sigma^2 + \lVert\beta\rVert^2}$ does not
+depend on $\nu$. For a small $\nu$ the spread of $y$ is much larger than for
+the normal covariate, so the same shift is a weaker outlier.
+
+These explanations are hypotheses. The pointwise terms per trial were not
+analysed.
+
 ## Outlier
 
 As in the paper, the first observation gets the mean shift
