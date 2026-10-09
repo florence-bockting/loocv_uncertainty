@@ -47,7 +47,7 @@ GRIDS = {
             n_obs=[32, 128, 512],
             beta_t=[0.0, 0.2, 1.0],
             out_dev=[0.0, 20.0],
-            x_df=[math.inf, 1, 2, 3, 5, 10, 30],
+            x_df=[math.inf, 1, 3, 10, 30],
             obs_per_chunk=64,
         ),
     ),
