@@ -36,12 +36,30 @@ greys <- function(k) {
   grDevices::grey(seq(1 - 0.3, 0, length.out = k) * 0.95)
 }
 
-# Rows of one covariate distribution: x_df = Inf is the normal covariate,
-# a finite x_df the t covariate. A table without an x_df column comes from
-# a run before the t covariate and holds normal cells only.
-select_x_df <- function(d, x_df) {
-  if (is.null(d$x_df)) d$x_df <- Inf
-  d[d$x_df == x_df, ]
+# Rows of one covariate distribution x_dist (see lib/dgp.R). A table
+# without an x_dist column comes from an earlier run: with an x_df column,
+# Inf is the normal and a finite df the t covariate; without one, it holds
+# normal cells only.
+select_x_dist <- function(d, x_dist) {
+  if (is.null(d$x_dist)) {
+    x_df <- if (is.null(d$x_df)) rep(Inf, nrow(d)) else d$x_df
+    d$x_dist <- ifelse(is.finite(x_df), paste0("t", x_df), "normal")
+  }
+  d[d$x_dist == x_dist, ]
+}
+
+# Title of a covariate distribution, such as "t(3)" for "t3". The slant of
+# the skew-t mirrors SKEWT_ALPHA in lib/dgp.R.
+x_dist_title <- function(x_dist) {
+  dist <- sub("[0-9.]+$", "", x_dist)
+  par <- sub("^[a-z]+", "", x_dist)
+  switch(dist,
+    normal = "N(0, 1)",
+    t = sprintf("t(%s)", par),
+    skewt = sprintf("skew-t(%s, alpha = 5), standardised", par),
+    gamma = sprintf("gamma(%s), standardised", par),
+    stop("unknown covariate distribution: ", x_dist)
+  )
 }
 
 # Trials of one cell, selected by its parameters.

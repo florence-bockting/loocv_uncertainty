@@ -1,5 +1,4 @@
 import csv
-import math
 
 
 def read_cells(path):
@@ -12,8 +11,9 @@ def read_cells(path):
             n_obs=int(row["n_obs"]),
             beta_t=float(row["beta_t"]),
             out_dev=float(row["out_dev"]),
-            # Inf: normal covariate; finite: t covariate (gaussian only)
-            x_df=float(row.get("x_df", "Inf")),
+            # covariate distribution, see workflow/scripts/lib/dgp.R;
+            # other than "normal" for the gaussian family only
+            x_dist=row.get("x_dist", "normal"),
             n_chunks=int(row["n_chunks"]),
         )
         for row in rows
@@ -25,9 +25,9 @@ RES = config["results"]
 N_OBS_MAX = max(cell["n_obs"] for cell in CELLS.values())
 MODELS = ["A", "B"]
 FAMILIES = sorted({cell["family"] for cell in CELLS.values()})
-# Degrees of freedom of the t covariate in the grid; the normal is not listed.
-X_DFS = sorted(
-    {cell["x_df"] for cell in CELLS.values() if math.isfinite(cell["x_df"])}
+# Covariate distributions in the grid; the normal is not listed.
+X_DISTS = sorted(
+    {cell["x_dist"] for cell in CELLS.values() if cell["x_dist"] != "normal"}
 )
 # Mirror MEASURES_BINARY and MEASURES_GAUSSIAN in
 # workflow/scripts/lib/measures.R.
@@ -52,8 +52,8 @@ wildcard_constraints:
     chunk=r"\d+",
     measure=r"[a-z0-9]+",
     fig=r"[a-z_]+",
-    # empty for the normal covariate, "_t<df>" for a t covariate
-    xdf=r"(_t[0-9.]+)?",
+    # empty for the normal covariate, "_<x_dist>" for the others
+    xdist=r"(_(t|skewt|gamma)[0-9.]+)?",
 
 
 def cell_params(wildcards):
@@ -80,13 +80,9 @@ PAPER_FIGS = [
 FIGS = ["overview"] + PAPER_FIGS
 
 
-def x_df_param(wildcards):
-    """x_df of a figure: Inf for the normal covariate."""
-    return float(wildcards.xdf[2:]) if wildcards.xdf else math.inf
-
-
-def xdf_suffix(x_df):
-    return f"_t{x_df:g}"
+def x_dist_param(wildcards):
+    """x_dist of a figure: "normal" for an empty suffix."""
+    return wildcards.xdist[1:] if wildcards.xdist else "normal"
 
 
 def plot_selection(wildcards):
@@ -101,7 +97,7 @@ def plot_cells():
     """The cells of the plot selection, for the figures of a single cell."""
     cells = []
     for cell, params in CELLS.items():
-        if math.isfinite(params["x_df"]):
+        if params["x_dist"] != "normal":
             continue
         sel = dict(config["plot"])
         sel.update(config.get(f"plot_{params['family']}", {}))
@@ -133,8 +129,8 @@ def paper_figure(wildcards):
 
 def report_files():
     """Figures for every measure, plus the side-by-side pages if the config
-    names the paper figures. A t covariate gets its own paper figures; all
-    other figures show the normal covariate only."""
+    names the paper figures. A covariate other than the normal gets its own
+    paper figures; all other figures show the normal covariate only."""
     files = [
         f"{RES}/figs/{fig}_{family}_{measure}.pdf"
         for fig in FIGS
@@ -142,10 +138,10 @@ def report_files():
         for measure in family_measures(family)
     ]
     files += [
-        f"{RES}/figs/{fig}_gaussian_{measure}{xdf_suffix(x_df)}.pdf"
+        f"{RES}/figs/{fig}_gaussian_{measure}_{x_dist}.pdf"
         for fig in PAPER_FIGS
         for measure in family_measures("gaussian")
-        for x_df in X_DFS
+        for x_dist in X_DISTS
     ]
     files += [f"{RES}/figs/pointwise_{cell}.pdf" for cell in plot_cells()]
     files += [

@@ -59,7 +59,7 @@ compare_cell <- function(cell_name) {
   res$n_obs <- cell$n_obs
   res$beta_t <- cell$beta_t
   res$out_dev <- cell$out_dev
-  res$x_df <- cell$x_df
+  res$x_dist <- cell$x_dist
   res
 }
 

@@ -62,7 +62,7 @@ rows <- lapply(groups, function(g) {
       qs <- stats::quantile(mom[[s]], c(0.025, 0.5, 0.975), na.rm = TRUE)
       data.frame(cell = g$cell[1], family = g$family[1],
                  n_obs = g$n_obs[1], beta_t = g$beta_t[1],
-                 out_dev = g$out_dev[1], x_df = g$x_df[1],
+                 out_dev = g$out_dev[1], x_dist = g$x_dist[1],
                  measure = g$measure[1], quantity = q, stat = s,
                  q025 = qs[[1]], q500 = qs[[2]], q975 = qs[[3]],
                  n_trial = nrow(g), n_dropped = n_dropped)

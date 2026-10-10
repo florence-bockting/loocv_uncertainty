@@ -4,30 +4,68 @@
 # where the first n_obs_out observations get the outlier mean
 # out_dev * sqrt(sigma2_d + sum(beta^2)).
 #
-# Extension (gaussian family only): with a finite x_df, the covariates
-# X[, -1] are standard t with x_df degrees of freedom, from Cauchy (1)
-# towards the normal (Inf). The t is not rescaled, because its variance is
-# infinite for x_df <= 2; the outlier mean keeps the formula above.
+# Extension (gaussian family only): x_dist sets the distribution of the
+# covariates X[, -1]. The outlier mean keeps the formula above.
+#   "normal"   N(0, 1), the paper.
+#   "t<df>"    standard t with df degrees of freedom, from Cauchy (t1)
+#              towards the normal. Not rescaled, because its variance is
+#              infinite for df <= 2.
+#   "skewt<df>" Azzalini skew-t with df degrees of freedom and slant
+#              SKEWT_ALPHA, standardised to mean 0 and variance 1. Its
+#              fourth moment is finite for df > 4.
+#   "gamma<k>" gamma with shape k, standardised to mean 0 and variance 1.
+
+# Slant of the skew-t covariate.
+SKEWT_ALPHA <- 5
+
+# Splits a covariate label such as "t3" into its distribution and parameter.
+parse_x_dist <- function(x_dist) {
+  pattern <- "^(normal|t|skewt|gamma)([0-9.]*)$"
+  m <- regmatches(x_dist, regexec(pattern, x_dist))[[1]]
+  if (length(m) == 0 || (m[2] == "normal") != (m[3] == "")) {
+    stop("unknown covariate distribution: ", x_dist)
+  }
+  list(dist = m[2], par = as.numeric(m[3]))
+}
+
+# Covariates of distribution x_dist from the standard normals z and the
+# uniforms u. The skew-t draws one more standard normal per covariate.
+covariate_draw <- function(z, u, x_dist) {
+  d <- parse_x_dist(x_dist)
+  switch(d$dist,
+    t = z / sqrt(qchisq(u, d$par) / d$par),
+    skewt = {
+      nu <- d$par
+      if (nu <= 2) stop("skewt needs df > 2 for a finite variance")
+      delta <- SKEWT_ALPHA / sqrt(1 + SKEWT_ALPHA^2)
+      z0 <- rnorm(length(z))
+      x <- (delta * abs(z0) + sqrt(1 - delta^2) * z) /
+        sqrt(qchisq(u, nu) / nu)
+      mu <- delta * sqrt(nu / pi) * exp(lgamma((nu - 1) / 2) - lgamma(nu / 2))
+      (x - mu) / sqrt(nu / (nu - 2) - mu^2)
+    },
+    gamma = (qgamma(u, d$par) - d$par) / sqrt(d$par)
+  )
+}
 
 # Draws n_sets data sets of size n_obs_max and keeps the first n_obs rows,
 # so that cells with different n_obs share the same random numbers.
 # Returns X as an [n_obs, n_dim, n_sets] array and y as an [n_obs, n_sets]
 # matrix.
 #
-# The t covariate is z / sqrt(qchisq(u, x_df) / x_df). z and eps are drawn
-# as for the normal covariate, and u is drawn last, only for a finite x_df.
-# So the normal cells keep their random numbers, and all t cells share the
-# same z, eps and u: they differ only in x_df.
+# z and eps are drawn as for the normal covariate. A covariate other than
+# the normal then draws u, and the skew-t draws z0 last. So the normal cells
+# keep their random numbers, and all other cells share the same z, eps and
+# u: they differ only in x_dist.
 make_data_gaussian <- function(n_sets, n_obs, n_obs_max, beta, out_dev,
-                      n_obs_out = 1, sigma2_d = 1, x_df = Inf) {
+                      n_obs_out = 1, sigma2_d = 1, x_dist = "normal") {
   n_dim <- length(beta)
   x <- array(rnorm(n_obs_max * (n_dim - 1) * n_sets),
              c(n_obs_max, n_dim - 1, n_sets))
   eps <- matrix(rnorm(n_obs_max * n_sets, sd = sqrt(sigma2_d)),
                 n_obs_max, n_sets)
-  if (is.finite(x_df)) {
-    u <- runif(length(x))
-    x <- x / sqrt(qchisq(u, x_df) / x_df)
+  if (x_dist != "normal") {
+    x[] <- covariate_draw(x, runif(length(x)), x_dist)
   }
   mu_d <- numeric(n_obs_max)
   mu_d[seq_len(n_obs_out)] <- out_dev * sqrt(sigma2_d + sum(beta^2))
@@ -109,13 +147,13 @@ make_data_poisson <- function(n_sets, n_obs, n_obs_max, beta, out_dev,
 }
 
 # Draws the data of one cell, for any family. Only the gaussian family has
-# the t covariate, so x_df must be Inf for the others.
-make_data_family <- function(family, ..., x_df = Inf) {
-  if (family != "gaussian" && is.finite(x_df)) {
-    stop("x_df is for the gaussian family only, not ", family)
+# other covariates than the normal, so x_dist must be "normal" for the others.
+make_data_family <- function(family, ..., x_dist = "normal") {
+  if (family != "gaussian" && x_dist != "normal") {
+    stop("x_dist is for the gaussian family only, not ", family)
   }
   switch(family,
-    gaussian = make_data_gaussian(..., x_df = x_df),
+    gaussian = make_data_gaussian(..., x_dist = x_dist),
     binomial = make_data_binomial(...),
     poisson = make_data_poisson(...),
     stop("unknown family: ", family)
