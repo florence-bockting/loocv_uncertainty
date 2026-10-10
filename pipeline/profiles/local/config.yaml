@@ -1,0 +1,3 @@
+# Laptop test with the small grid and the local R.
+configfile: config/small.yaml
+cores: 4

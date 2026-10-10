@@ -1,0 +1,40 @@
+# Simulation grid of Sivula et al. (2025), extended to the loo measures.
+# DAG per cell: generate_data -> fit_posterior_and_loo (per model, chunk)
+#   -> compute_measure
+# Grid: compare_models (all cells) -> summarise -> plot_* -> side_by_side
+# Run from the pipeline folder:
+#   snakemake --profile profiles/local
+#   snakemake --profile profiles/triton
+
+
+configfile: "config/small.yaml"
+
+
+include: "rules/common.smk"
+include: "rules/generate_fit_data.smk"
+include: "rules/compute_measure.smk"
+include: "rules/compare_models.smk"
+include: "rules/report.smk"
+
+
+# Short rules run inside the Snakemake job, not as separate Slurm jobs:
+# Triton asks for jobs of about 30 min or longer.
+localrules:
+    all,
+    generate_data,
+    plot_calibration,
+    plot_coverage,
+    plot_joint,
+    plot_moments,
+    plot_overview,
+    plot_var_ratio,
+    plot_err,
+    plot_errdirection,
+    plot_pointwise,
+    side_by_side,
+
+
+rule all:
+    input:
+        f"{RES}/trials.rds",
+        report_files(),
