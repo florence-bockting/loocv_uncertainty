@@ -1509,9 +1509,28 @@ y_i = \beta_0 + \beta_1 x_{i1} + \beta_t x_{i2} + \varepsilon_i,
 \qquad
 \beta = (0, 1, \beta_t), \quad \sigma^2 = 1.
 \]</span></p>
-<p>Model A omits <span class="math inline">\(x_{2}\)</span>. Model B
-includes it. Both are normal linear regressions with the exact LOO
-predictive. The quantity of interest is the elpd difference <span class="math inline">\(\mathrm{elpd}_A - \mathrm{elpd}_B\)</span>.</p>
+<div id="models" class="section level2">
+<h2>Models</h2>
+<p><code>lib/glm.R</code> fits two normal linear regressions. Model A
+omits <span class="math inline">\(x_{2}\)</span>. Model B includes
+it.</p>
+<p><span class="math display">\[
+\begin{aligned}
+\text{A:} \quad &amp; y_i \sim \mathrm{N}(b_0 + b_1 x_{i1},\ \tau^2), \\
+\text{B:} \quad &amp; y_i \sim \mathrm{N}(b_0 + b_1 x_{i1} + b_2
+x_{i2},\ \tau^2),
+\end{aligned}
+\qquad
+p(b, \log\tau^2) \propto 1.
+\]</span></p>
+<p>The noise variance <span class="math inline">\(\tau^2\)</span> is
+unknown. The models do not get the true <span class="math inline">\(\sigma^2 = 1\)</span>. They estimate <span class="math inline">\(\tau^2\)</span> from the data. So the posterior
+predictive is a Student-t with <span class="math inline">\(n -
+d\)</span> degrees of freedom, where <span class="math inline">\(d\)</span> is the number of coefficients. The
+exact LOO predictive is a Student-t with <span class="math inline">\(n -
+1 - d\)</span> degrees of freedom.</p>
+<p>The quantity of interest is the elpd difference <span class="math inline">\(\mathrm{elpd}_A - \mathrm{elpd}_B\)</span>.</p>
+</div>
 <div id="covariates" class="section level2">
 <h2>Covariates</h2>
 <p>The covariates <span class="math inline">\(x_{ij}\)</span> are
@@ -1720,8 +1739,8 @@ come from the moments of the skew-normal and of <span class="math inline">\((w /
 of its residual. The pointwise log predictive density of model A is then
 about</p>
 <p><span class="math display">\[
-\log p_A(y_i) \approx -\tfrac{1}{2}\log(2\pi\hat\sigma_A^2)
-  - \frac{(\beta_t x_{i2} + \varepsilon_i)^2}{2\hat\sigma_A^2},
+\log p_A(y_i) \approx -\tfrac{1}{2}\log(2\pi\hat\tau_A^2)
+  - \frac{(\beta_t x_{i2} + \varepsilon_i)^2}{2\hat\tau_A^2},
 \]</span></p>
 <p>and the pointwise elpd difference contains <span class="math inline">\(\beta_t^2 x_{i2}^2\)</span> and <span class="math inline">\(\beta_t x_{i2} \varepsilon_i\)</span>. The normal
 approximation sums these terms and uses <span class="math inline">\(\widehat{\mathrm{SE}} =

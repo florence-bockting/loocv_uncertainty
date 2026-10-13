@@ -1,7 +1,9 @@
-# Posterior predictive of the normal linear model with unknown noise
-# variance tau2 and a uniform prior on (beta, log(tau2)).
+# Posterior predictive of the normal linear model with noise variance tau2.
+# tau2 = NULL: tau2 is unknown, with a uniform prior on (beta, log(tau2)).
+# A numeric tau2: tau2 is known, with a uniform prior on beta.
 # Mirrors calc_loo_ti and calc_elpd_tl in simulated/general_setup.py.
 # A predictive is list(mu, scale, df), a Student-t location-scale predictive.
+# A known tau2 gives df = Inf, the normal predictive.
 
 # Model A drops the last covariate, model B uses all covariates.
 model_columns <- function(model, n_dim) {
@@ -16,23 +18,29 @@ model_columns <- function(model, n_dim) {
 #   y_i - mu_{-i}              = e_i / (1 - h_i)
 #   x_i' (X_{-i}'X_{-i})^-1 x_i = h_i / (1 - h_i)
 #   RSS_{-i}                   = RSS - e_i^2 / (1 - h_i).
-loo_predictive_gaussian <- function(X, y) {
+loo_predictive_gaussian <- function(X, y, tau2 = NULL) {
   n <- nrow(X)
   d <- ncol(X)
   qr_X <- qr(X)
   h <- rowSums(qr.Q(qr_X)^2)
   e <- qr.resid(qr_X, y)
   mu <- y - e / (1 - h)
+  if (!is.null(tau2)) {
+    return(list(mu = mu, scale = sqrt(tau2 / (1 - h)), df = Inf))
+  }
   s2 <- (sum(e^2) - e^2 / (1 - h)) / (n - 1 - d)
   list(mu = mu, scale = sqrt(s2 / (1 - h)), df = n - 1 - d)
 }
 
 # Fit to all of (X, y): the posterior of beta.
-fit_model_gaussian <- function(X, y) {
+fit_model_gaussian <- function(X, y, tau2 = NULL) {
   n <- nrow(X)
   d <- ncol(X)
   V <- chol2inv(chol(crossprod(X)))
   beta_hat <- drop(V %*% crossprod(X, y))
+  if (!is.null(tau2)) {
+    return(list(beta_hat = beta_hat, V = V, s2 = tau2, df = Inf))
+  }
   s2 <- sum((y - X %*% beta_hat)^2) / (n - d)
   list(beta_hat = beta_hat, V = V, s2 = s2, df = n - d)
 }
@@ -316,10 +324,11 @@ predict_new_family <- function(family, fit, X_new) {
   )
 }
 
-# Fit of one training set, for any family.
-fit_model_family <- function(family, X, y) {
+# Fit of one training set, for any family. tau2 is the known noise variance
+# of the gaussian family, NULL for unknown; the other families ignore it.
+fit_model_family <- function(family, X, y, tau2 = NULL) {
   switch(family,
-    gaussian = fit_model_gaussian(X, y),
+    gaussian = fit_model_gaussian(X, y, tau2 = tau2),
     binomial = fit_model_binomial(X, y),
     poisson = fit_model_poisson(X, y),
     stop("unknown family: ", family)
@@ -327,10 +336,11 @@ fit_model_family <- function(family, X, y) {
 }
 
 # LOO predictive of one training set, for any family. start warm starts the
-# GLM refits, usually at the full-data mode; the Gaussian ignores it.
-loo_predictive_family <- function(family, X, y, start = NULL) {
+# GLM refits, usually at the full-data mode; the Gaussian ignores it. tau2
+# as in fit_model_family().
+loo_predictive_family <- function(family, X, y, start = NULL, tau2 = NULL) {
   switch(family,
-    gaussian = loo_predictive_gaussian(X, y),
+    gaussian = loo_predictive_gaussian(X, y, tau2 = tau2),
     binomial = loo_predictive_binomial(X, y, start = start),
     poisson = loo_predictive_poisson(X, y, start = start),
     stop("unknown family: ", family)

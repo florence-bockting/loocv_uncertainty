@@ -63,6 +63,7 @@ rows <- lapply(groups, function(g) {
       data.frame(cell = g$cell[1], family = g$family[1],
                  n_obs = g$n_obs[1], beta_t = g$beta_t[1],
                  out_dev = g$out_dev[1], x_dist = g$x_dist[1],
+                 tau2 = if (is.null(g$tau2)) NA_real_ else g$tau2[1],
                  measure = g$measure[1], quantity = q, stat = s,
                  q025 = qs[[1]], q500 = qs[[2]], q975 = qs[[3]],
                  n_trial = nrow(g), n_dropped = n_dropped)

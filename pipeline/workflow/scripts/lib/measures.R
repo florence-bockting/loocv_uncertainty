@@ -30,8 +30,12 @@ pointwise_scores <- function(y, pred, scores = SCORES) {
   out[scores]
 }
 
-# E|Z - z| and E|Z - Z'| for Z, Z' iid t(nu).
+# E|Z - z| and E|Z - Z'| for Z, Z' iid t(nu). nu = Inf is the normal.
 abs_moments <- function(z, nu) {
+  if (is.infinite(nu)) {
+    return(list(abs_dev = z * (2 * pnorm(z) - 1) + 2 * dnorm(z),
+                spread = 2 / sqrt(pi)))
+  }
   list(abs_dev = z * (2 * pt(z, nu) - 1) +
          2 * dt(z, nu) * (nu + z^2) / (nu - 1),
        spread = 4 * sqrt(nu) / (nu - 1) *

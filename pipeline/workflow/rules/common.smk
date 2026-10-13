@@ -14,6 +14,9 @@ def read_cells(path):
             # covariate distribution, see workflow/scripts/lib/dgp.R;
             # other than "normal" for the gaussian family only
             x_dist=row.get("x_dist", "normal"),
+            # known noise variance of the gaussian models; None (an empty
+            # entry) for unknown, see workflow/scripts/lib/glm.R
+            tau2=float(row["tau2"]) if row.get("tau2") else None,
             n_chunks=int(row["n_chunks"]),
         )
         for row in rows
@@ -25,9 +28,21 @@ RES = config["results"]
 N_OBS_MAX = max(cell["n_obs"] for cell in CELLS.values())
 MODELS = ["A", "B"]
 FAMILIES = sorted({cell["family"] for cell in CELLS.values()})
-# Covariate distributions in the grid; the normal is not listed.
-X_DISTS = sorted(
-    {cell["x_dist"] for cell in CELLS.values() if cell["x_dist"] != "normal"}
+
+
+def variant_suffix(x_dist, tau2):
+    """Suffix of a cell or figure name: "_<x_dist>" for a covariate other
+    than the normal, then "_tau<tau2>" for a known noise variance."""
+    suffix = "" if x_dist == "normal" else f"_{x_dist}"
+    return suffix if tau2 is None else suffix + f"_tau{tau2:g}"
+
+
+# Suffixes of the variants in the grid, a variant being a covariate
+# distribution and a noise variance; the paper's variant (the normal
+# covariate, unknown variance) is not listed.
+VARIANTS = sorted(
+    {variant_suffix(cell["x_dist"], cell["tau2"]) for cell in CELLS.values()}
+    - {""}
 )
 # Mirror MEASURES_BINARY and MEASURES_GAUSSIAN in
 # workflow/scripts/lib/measures.R.
@@ -54,6 +69,8 @@ wildcard_constraints:
     fig=r"[a-z_]+",
     # empty for the normal covariate, "_<x_dist>" for the others
     xdist=r"(_(t|skewt|gamma)[0-9.]+)?",
+    # empty for an unknown noise variance, "_tau<tau2>" for a known one
+    tau=r"(_tau[0-9.]+)?",
 
 
 def cell_params(wildcards):
@@ -85,6 +102,11 @@ def x_dist_param(wildcards):
     return wildcards.xdist[1:] if wildcards.xdist else "normal"
 
 
+def tau2_param(wildcards):
+    """tau2 of a figure: None (unknown) for an empty suffix."""
+    return float(wildcards.tau[len("_tau"):]) if wildcards.tau else None
+
+
 def plot_selection(wildcards):
     """The cells a figure shows. `plot_<family>` in the config overrides
     single entries of `plot` for that family."""
@@ -97,7 +119,7 @@ def plot_cells():
     """The cells of the plot selection, for the figures of a single cell."""
     cells = []
     for cell, params in CELLS.items():
-        if params["x_dist"] != "normal":
+        if params["x_dist"] != "normal" or params["tau2"] is not None:
             continue
         sel = dict(config["plot"])
         sel.update(config.get(f"plot_{params['family']}", {}))
@@ -129,8 +151,9 @@ def paper_figure(wildcards):
 
 def report_files():
     """Figures for every measure, plus the side-by-side pages if the config
-    names the paper figures. A covariate other than the normal gets its own
-    paper figures; all other figures show the normal covariate only."""
+    names the paper figures. A variant other than the paper's (see
+    VARIANTS) gets its own paper figures; all other figures show the
+    paper's variant only."""
     files = [
         f"{RES}/figs/{fig}_{family}_{measure}.pdf"
         for fig in FIGS
@@ -138,10 +161,10 @@ def report_files():
         for measure in family_measures(family)
     ]
     files += [
-        f"{RES}/figs/{fig}_gaussian_{measure}_{x_dist}.pdf"
+        f"{RES}/figs/{fig}_gaussian_{measure}{variant}.pdf"
         for fig in PAPER_FIGS
         for measure in family_measures("gaussian")
-        for x_dist in X_DISTS
+        for variant in VARIANTS
     ]
     files += [f"{RES}/figs/pointwise_{cell}.pdf" for cell in plot_cells()]
     files += [

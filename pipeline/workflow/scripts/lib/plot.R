@@ -48,6 +48,14 @@ select_x_dist <- function(d, x_dist) {
   d[d$x_dist == x_dist, ]
 }
 
+# Rows of one noise variance of the gaussian models (see lib/glm.R): tau2 =
+# NULL selects the unknown variance, a number that known variance. A table
+# without a tau2 column comes from an earlier run, with unknown variance only.
+select_tau2 <- function(d, tau2) {
+  if (is.null(d$tau2)) d$tau2 <- NA_real_
+  if (is.null(tau2)) d[is.na(d$tau2), ] else d[d$tau2 %in% tau2, ]
+}
+
 # Title of a covariate distribution, such as "t(3)" for "t3". The slant of
 # the skew-t mirrors SKEWT_ALPHA in lib/dgp.R.
 x_dist_title <- function(x_dist) {

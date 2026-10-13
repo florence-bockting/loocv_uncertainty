@@ -44,6 +44,9 @@ GRIDS = {
     # the normal (the paper's cells), t<df> from Cauchy (t1) towards the
     # normal, and two skewed ones with a finite fourth moment: the skew-t
     # with 5 degrees of freedom and the gamma with shape 2.
+    # tau2 is the noise variance of the models (see
+    # workflow/scripts/lib/glm.R): None for unknown (the paper), or the
+    # known value, here the true variance 1.
     "config/cells_paper.tsv": dict(
         gaussian=dict(
             n_obs=[32, 128, 512],
@@ -52,6 +55,7 @@ GRIDS = {
             x_dist=[
                 "normal", "t1", "t3", "t5", "t10", "t30", "skewt5", "gamma2"
             ],
+            tau2=[None, 1.0],
             obs_per_chunk=64,
         ),
     ),
@@ -80,7 +84,8 @@ GRIDS = {
 
 # Cell names of the gaussian family are unprefixed, so that the cells of
 # earlier runs keep their names and their results. For the same reason only
-# a covariate other than the normal adds a suffix (its x_dist) to the name.
+# a covariate other than the normal adds a suffix (its x_dist) to the name,
+# and a known noise variance a further suffix "_tau<tau2>".
 PREFIX = {"gaussian": "", "binomial": "bin_", "poisson": "pois_"}
 
 
@@ -92,10 +97,14 @@ for path, families in GRIDS.items():
     with open(path, "w", newline="") as f:
         writer = csv.writer(f, delimiter="\t")
         writer.writerow(
-            ["cell", "family", "n_obs", "beta_t", "out_dev", "x_dist", "n_chunks"]
+            [
+                "cell", "family", "n_obs", "beta_t", "out_dev", "x_dist",
+                "tau2", "n_chunks",
+            ]
         )
         for family, grid in families.items():
-            for d, n, b, o in itertools.product(
+            for t, d, n, b, o in itertools.product(
+                grid.get("tau2", [None]),
                 grid.get("x_dist", ["normal"]),
                 grid["n_obs"],
                 grid["beta_t"],
@@ -104,7 +113,10 @@ for path, families in GRIDS.items():
                 cell = f"{PREFIX[family]}n{n}_b{fmt(b)}_o{fmt(o)}"
                 if d != "normal":
                     cell += f"_{d}"
+                if t is not None:
+                    cell += f"_tau{fmt(t)}"
                 n_chunks = math.ceil(n / grid["obs_per_chunk"])
                 writer.writerow(
-                    [cell, family, n, fmt(b), fmt(o), d, n_chunks]
+                    [cell, family, n, fmt(b), fmt(o), d,
+                     "" if t is None else fmt(t), n_chunks]
                 )

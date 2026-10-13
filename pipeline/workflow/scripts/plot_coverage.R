@@ -13,6 +13,7 @@ fam_col <- stats::setNames(MPL[seq_along(families)], families)
 
 trials <- readRDS(snakemake@input[[1]])
 trials <- select_x_dist(trials, snakemake@params[["x_dist"]])
+trials <- select_tau2(trials, snakemake@params[["tau2"]])
 trials <- trials[trials$out_dev == 0 & is.finite(trials$se) &
                    is.finite(trials$estimate), ]
 trials$covered <- abs(trials$estimate - trials$target) <=

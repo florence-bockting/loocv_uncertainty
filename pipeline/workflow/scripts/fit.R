@@ -16,7 +16,8 @@ fits <- lapply(trials, function(t) {
   fit_model_family(
     family = cell$family,
     X = train$X[, cols, t],
-    y = train$y[, t]
+    y = train$y[, t],
+    tau2 = cell$tau2
   )
 })
 
@@ -26,7 +27,8 @@ loos <- Map(function(t, fit) {
     family = cell$family,
     X = train$X[, cols, t],
     y = train$y[, t],
-    start = fit$beta_hat
+    start = fit$beta_hat,
+    tau2 = cell$tau2
   )
 }, trials, fits)
 

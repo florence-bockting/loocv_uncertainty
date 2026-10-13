@@ -85,9 +85,28 @@ y_i = \beta_0 + \beta_1 x_{i1} + \beta_t x_{i2} + \varepsilon_i,
 \beta = (0, 1, \beta_t), \quad \sigma^2 = 1.
 $$
 
-Model A omits $x_{2}$. Model B includes it. Both are normal linear
-regressions with the exact LOO predictive. The quantity of interest is the
-elpd difference $\mathrm{elpd}_A - \mathrm{elpd}_B$.
+## Models
+
+`lib/glm.R` fits two normal linear regressions. Model A omits $x_{2}$.
+Model B includes it.
+
+$$
+\begin{aligned}
+\text{A:} \quad & y_i \sim \mathrm{N}(b_0 + b_1 x_{i1},\ \tau^2), \\
+\text{B:} \quad & y_i \sim \mathrm{N}(b_0 + b_1 x_{i1} + b_2 x_{i2},\ \tau^2),
+\end{aligned}
+\qquad
+p(b, \log\tau^2) \propto 1.
+$$
+
+The noise variance $\tau^2$ is unknown. The models do not get the true
+$\sigma^2 = 1$. They estimate $\tau^2$ from the data. So the posterior
+predictive is a Student-t with $n - d$ degrees of freedom, where $d$ is the
+number of coefficients. The exact LOO predictive is a Student-t with
+$n - 1 - d$ degrees of freedom.
+
+The quantity of interest is the elpd difference
+$\mathrm{elpd}_A - \mathrm{elpd}_B$.
 
 ## Covariates
 
@@ -263,8 +282,8 @@ Why $x_2^2$ matters: model A omits $\beta_t x_2$, so this term is part of
 its residual. The pointwise log predictive density of model A is then about
 
 $$
-\log p_A(y_i) \approx -\tfrac{1}{2}\log(2\pi\hat\sigma_A^2)
-  - \frac{(\beta_t x_{i2} + \varepsilon_i)^2}{2\hat\sigma_A^2},
+\log p_A(y_i) \approx -\tfrac{1}{2}\log(2\pi\hat\tau_A^2)
+  - \frac{(\beta_t x_{i2} + \varepsilon_i)^2}{2\hat\tau_A^2},
 $$
 
 and the pointwise elpd difference contains $\beta_t^2 x_{i2}^2$ and

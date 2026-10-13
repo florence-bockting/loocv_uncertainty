@@ -60,6 +60,7 @@ compare_cell <- function(cell_name) {
   res$beta_t <- cell$beta_t
   res$out_dev <- cell$out_dev
   res$x_dist <- cell$x_dist
+  res$tau2 <- if (is.null(cell$tau2)) NA_real_ else cell$tau2
   res
 }
 

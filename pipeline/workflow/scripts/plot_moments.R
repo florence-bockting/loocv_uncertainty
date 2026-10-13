@@ -7,6 +7,7 @@ snakemake@source("lib/plot.R")
 
 mom <- readRDS(snakemake@input[[1]])
 mom <- select_x_dist(mom, snakemake@params[["x_dist"]])
+mom <- select_tau2(mom, snakemake@params[["tau2"]])
 measure <- snakemake@wildcards[["measure"]]
 family <- snakemake@wildcards[["family"]]
 sel <- snakemake@params[["sel"]]

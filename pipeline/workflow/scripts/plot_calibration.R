@@ -6,6 +6,7 @@ snakemake@source("lib/plot.R")
 
 trials <- readRDS(snakemake@input[[1]])
 trials <- select_x_dist(trials, snakemake@params[["x_dist"]])
+trials <- select_tau2(trials, snakemake@params[["tau2"]])
 measure <- snakemake@wildcards[["measure"]]
 family <- snakemake@wildcards[["family"]]
 sel <- snakemake@params[["sel"]]
@@ -58,9 +59,13 @@ for (b_i in seq_along(beta_sel)) {
 mtext(bquote(p(widehat(.(as.name(measure))) < .(as.name(measure)))),
       side = 1, outer = TRUE, line = 2.5)
 x_dist <- snakemake@params[["x_dist"]]
-mtext(sprintf("%s: normal approximation%s", measure,
+tau2 <- snakemake@params[["tau2"]]
+mtext(sprintf("%s: normal approximation%s%s", measure,
               if (x_dist != "normal") {
                 paste0(", covariate ", x_dist_title(x_dist))
+              } else "",
+              if (!is.null(tau2)) {
+                sprintf(", known variance tau2 = %g", tau2)
               } else ""),
       side = 3, outer = TRUE, line = 2.5, font = 2)
 dev.off()
