@@ -166,6 +166,13 @@ def report_files():
         for measure in family_measures("gaussian")
         for variant in VARIANTS
     ]
+    # Joint distribution coloured by the training design, every variant.
+    if "gaussian" in FAMILIES:
+        files += [
+            f"{RES}/figs/joint_var_gaussian_{measure}{variant}.pdf"
+            for measure in family_measures("gaussian")
+            for variant in [""] + VARIANTS
+        ]
     files += [f"{RES}/figs/pointwise_{cell}.pdf" for cell in plot_cells()]
     files += [
         f"{RES}/figs/coverage_absdiff.pdf",

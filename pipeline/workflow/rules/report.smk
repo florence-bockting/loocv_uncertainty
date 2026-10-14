@@ -72,6 +72,45 @@ rule plot_joint:
         "../scripts/plot_joint.R"
 
 
+rule design_stats:
+    input:
+        train=[
+            f"{RES}/{cell}/train.rds"
+            for cell, params in CELLS.items()
+            if params["family"] == "gaussian"
+        ],
+    output:
+        f"{RES}/design_stats.rds",
+    log:
+        f"{RES}/logs/design_stats.log",
+    conda:
+        "../envs/r.yaml"
+    params:
+        cells=[cell for cell, params in CELLS.items() if params["family"] == "gaussian"],
+    script:
+        "../scripts/design_stats.R"
+
+
+rule plot_joint_grouped:
+    input:
+        trials=f"{RES}/trials.rds",
+        design=f"{RES}/design_stats.rds",
+    output:
+        f"{RES}/figs/joint_{{group}}_{{family}}_{{measure}}{{xdist}}{{tau}}.pdf",
+    log:
+        f"{RES}/logs/plot_joint_{{group}}_{{family}}_{{measure}}{{xdist}}{{tau}}.log",
+    wildcard_constraints:
+        group="var",
+    conda:
+        "../envs/report.yaml"
+    params:
+        sel=plot_selection,
+        x_dist=x_dist_param,
+        tau2=tau2_param,
+    script:
+        "../scripts/plot_joint_grouped.R"
+
+
 rule plot_moments:
     input:
         f"{RES}/moments.rds",

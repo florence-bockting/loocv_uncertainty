@@ -25,6 +25,8 @@ localrules:
     plot_calibration,
     plot_coverage,
     plot_joint,
+    plot_joint_grouped,
+    design_stats,
     plot_moments,
     plot_overview,
     plot_var_ratio,

@@ -371,15 +371,17 @@ distribution.
 
 Each section shows one paper figure. Each tab shows one covariate
 distribution: the normal, the t from many degrees of freedom to the Cauchy,
-then the skewed covariates.
+then the skewed covariates. Inside each tab, the inner tabs show the
+unknown and the known noise variance.
 
 ```{r png}
 # The figures are PDFs. pdftoppm turns the first page into a PNG.
 png_dir <- file.path(params$results, "figs", "png")
 dir.create(png_dir, showWarnings = FALSE, recursive = TRUE)
-to_png <- function(fig, x_dist) {
+to_png <- function(fig, x_dist, tau2) {
   stem <- paste0(fig, "_gaussian_elpd",
-                 if (x_dist != "normal") paste0("_", x_dist))
+                 if (x_dist != "normal") paste0("_", x_dist),
+                 if (!is.na(tau2)) sprintf("_tau%g", tau2))
   pdf <- file.path(params$results, "figs", paste0(stem, ".pdf"))
   png <- file.path(png_dir, stem)
   if (!file.exists(pdf)) return(NA_character_)
@@ -389,12 +391,23 @@ to_png <- function(fig, x_dist) {
   normalizePath(paste0(png, ".png"))
 }
 
+# Noise variances: NA (unknown) first, then the known ones.
+tau2s <- sort(unique(cells$tau2), na.last = FALSE)
+tau_label <- function(tau2) {
+  if (is.na(tau2)) "unknown variance" else
+    sprintf("known variance (τ² = %g)", tau2)
+}
+
+# Outer tabs: covariate distribution. Inner tabs: noise variance.
 tabs <- function(fig) {
   for (x_dist in x_dists) {
-    cat("###", x_label(x_dist), "\n\n")
-    path <- to_png(fig, x_dist)
-    if (is.na(path)) cat("Figure not found.\n\n") else
-      cat(sprintf("![](%s){width=100%%}\n\n", path))
+    cat("###", x_label(x_dist), "{.tabset}\n\n")
+    for (tau2 in tau2s) {
+      cat("####", tau_label(tau2), "\n\n")
+      path <- to_png(fig, x_dist, tau2)
+      if (is.na(path)) cat("Figure not found.\n\n") else
+        cat(sprintf("![](%s){width=100%%}\n\n", path))
+    }
   }
 }
 ```
@@ -417,6 +430,19 @@ paper. Points on the green diagonal are estimated without error.
 
 ```{r joint, results = "asis"}
 tabs("joint")
+```
+
+## Joint distribution by the variance {.tabset}
+
+The joint distribution as points. The colour is the quantile of
+$\overline{x_2^2}$ of the training set, inside the cell. Model A puts
+$\beta_t x_2$ into its noise, so $\hat\tau^2_A \approx 1 + \beta_t^2
+\overline{x_2^2}$. The LOO estimate and the target both contain
+$-\tfrac{n}{2} \log \hat\tau^2_A$. So a large $\overline{x_2^2}$ moves the
+trial down the diagonal when $\beta_t > 0$. The red line is the diagonal.
+
+```{r joint_var, results = "asis"}
+tabs("joint_var")
 ```
 
 ## Moments {.tabset}
