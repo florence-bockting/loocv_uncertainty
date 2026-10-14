@@ -1,0 +1,385 @@
+---
+title: "Predictive measures in measures.R"
+output:
+  html_document:
+    toc: true
+    math_method: mathjax
+---
+
+```{r root, include = FALSE}
+# Paths in this file are relative to the pipeline folder.
+knitr::opts_knit$set(root.dir = "..")
+```
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+source("workflow/scripts/lib/dgp.R")
+source("workflow/scripts/lib/glm.R")
+source("workflow/scripts/lib/measures.R")
+```
+
+This file states every predictive measure of
+`workflow/scripts/lib/measures.R`. Then it computes each measure on example
+data of each family, and compares model A with model B. Equation numbers
+refer to `Predictive_measures_and_model_comparison_in_the_loo_package.pdf`.
+
+`measures.R` has two layers:
+
+1. **Pointwise scores.** `pointwise_scores_family()` evaluates the predictive
+   distribution $p(\tilde y_i)$ of each observation at $y_i$. This is the
+   only layer that depends on the family, because each family has its own
+   predictive distribution.
+2. **Measures.** `MEASURE_SPEC` builds every measure from one score. This
+   layer does not depend on the family. It follows `.measure_spec` of the loo
+   package, branch `pred_measure`.
+
+# Pointwise scores
+
+| Score | Pointwise value | Orientation | Families |
+| :-- | :-- | :-- | :-- |
+| `elpd` | $\log p(y_i)$ (2.16) | utility | all |
+| `sqe` | $(y_i - \mathrm{E}[\tilde y_i])^2$ | loss | all |
+| `ae` | $\lvert y_i - \mathrm{E}[\tilde y_i] \rvert$ | loss | all |
+| `rps` | $\mathrm{E}\lvert X - y_i \rvert - \tfrac12 \mathrm{E}\lvert X - X' \rvert$ (2.20) | loss | all |
+| `srps` | $-\dfrac{\mathrm{E}\lvert X - y_i \rvert}{\mathrm{E}\lvert X - X' \rvert} - \tfrac12 \log \mathrm{E}\lvert X - X' \rvert$ (2.21) | utility | all |
+| `acc` | $\mathbb 1[\hat y_i = y_i]$, $\hat y_i = \mathbb 1[p(\tilde y_i = 1) \ge 0.5]$ | utility | binomial |
+
+$X$ and $X'$ are independent draws from $p(\tilde y_i)$. For a binary
+outcome, $\mathrm{E}[\tilde y_i] = p(\tilde y_i = 1)$, so `sqe` is the Brier
+score (2.26).
+
+# Measures
+
+## Definition for one model
+
+$n$ is the number of observations and $s_i$ is the pointwise score.
+$\mathrm{MSE}(y) = \frac1n \sum_i (y_i - \bar y)^2$.
+
+| Measure | Score | Estimate | Loss |
+| :-- | :-- | :-- | :-- |
+| `elpd` | `elpd` | $\sum_i s_i$ | no |
+| `mlpd` | `elpd` | $\frac1n \sum_i s_i$ | no |
+| `ic` | `elpd` | $-2 \sum_i s_i$ | yes |
+| `mse` | `sqe` | $\frac1n \sum_i s_i$ | yes |
+| `rmse` | `sqe` | $\sqrt{\frac1n \sum_i s_i}$ | yes |
+| `r2` | `sqe` | $1 - \frac1n \sum_i s_i \,/\, \mathrm{MSE}(y)$ | no |
+| `brier` | `sqe` | $\frac1n \sum_i s_i$ | yes |
+| `mae` | `ae` | $\frac1n \sum_i s_i$ | yes |
+| `rps` | `rps` | $\frac1n \sum_i s_i$ | yes |
+| `srps` | `srps` | $\frac1n \sum_i s_i$ | no |
+| `acc` | `acc` | $\frac1n \sum_i s_i$ | no |
+| `bacc` | `acc` | $\frac12 \sum_{c} \frac1{n_c} \sum_{i \in c} s_i$ | no |
+
+`brier`, `acc` and `bacc` need a binary outcome. `measures_for_family()`
+drops them for the other families.
+
+## Difference of two models
+
+`loo_difference()` gives $\Delta = U(M_a) - U(M_b)$ on the utility scale. A
+loss is negated first, so $\Delta > 0$ always favours $M_a$. The
+`diff_method` of `MEASURE_SPEC` selects the SE:
+
+```{r spec}
+spec <- data.frame(
+  measure = names(MEASURE_SPEC),
+  score = MEASURE_SCORE,
+  loss = vapply(MEASURE_SPEC, `[[`, logical(1), "loss"),
+  diff_method = vapply(MEASURE_SPEC, `[[`, character(1), "diff_method"),
+  row.names = NULL
+)
+knitr::kable(spec)
+```
+
+- **`sum` and `mean`.** Let $d_i$ be the pointwise utility difference from
+  `pointwise_terms()`. Then $\Delta = \sum_i d_i$ with
+  $\widehat{\mathrm{SE}} = \sqrt n \, \mathrm{sd}(d_i)$ (2.12, 2.14), or
+  $\Delta = \bar d$ with $\widehat{\mathrm{SE}} = \mathrm{sd}(d_i) / \sqrt n$
+  (2.11, 2.13).
+- **`rmse`** (3.3), `se_diff_rmse()`. Let
+  $z_i = s_{a,i} / \mathrm{RMSE}_a - s_{b,i} / \mathrm{RMSE}_b$. Then
+  $\widehat{\mathrm{SE}} = \tfrac12 \sqrt{\mathrm{Var}(z_i) / n}$.
+- **`r2`** (3.4, 3.5), `se_diff_r2()`. Let $\delta_i = s_{a,i} - s_{b,i}$
+  and $c = \bar\delta / \mathrm{MSE}(y)$. Then
+  $\widehat{\mathrm{SE}} = \sqrt{\mathrm{Var}(\delta_i - c\,(y_i - \bar y)^2) / n} \,/\, \mathrm{MSE}(y)$.
+- **`bacc`**, `se_diff_bacc()`. The classes are disjoint, so their
+  variances add:
+  $\widehat{\mathrm{SE}} = \tfrac12 \sqrt{\sum_c \mathrm{Var}(d_i : i \in c) / n_c}$.
+
+The pipeline differs from loo in degenerate cases. An SE of zero, or a class
+with fewer than two observations, gives NA, so that the trial is dropped.
+loo reports an SE of zero.
+
+# Example data
+
+Each family uses one training set of $n = 64$ observations, no outlier and
+$\beta_t = 1$. Model A drops the last covariate. Model B uses all covariates,
+so B is the true model. A pooled test set gives the target, the
+out-of-sample value of each measure.
+
+```{r example-setup}
+N_OBS <- 64
+# The test sets of config/small.yaml. The binomial and poisson scores use
+# quadrature, so these families use fewer test sets.
+N_SETS_TEST <- c(gaussian = 200, binomial = 50, poisson = 20)
+BETA <- make_beta_coeff(beta_t = 1)
+
+# LOO scores of the training set and scores of the test set, for model A
+# and model B. Training sets first, then test sets, as rule generate_data.
+example_family <- function(family, seed = 5) {
+  set.seed(seed)
+  train <- make_data_family(family, 1, N_OBS, N_OBS, BETA, out_dev = 0)
+  test <- pool_sets(make_data_family(family, N_SETS_TEST[[family]], N_OBS,
+                                     N_OBS, BETA, out_dev = 0))
+  X <- train$X[, , 1]
+  y <- train$y[, 1]
+  measures <- measures_for_family(names(MEASURE_SPEC), family)
+  scores <- scores_for_family(SCORES_BINOMIAL, family)
+  models <- lapply(c(A = "A", B = "B"), function(m) {
+    cols <- model_columns(m, ncol(X))
+    X_m <- X[, cols, drop = FALSE]
+    fit <- fit_model_family(family, X_m, y)
+    loo_pred <- loo_predictive_family(family, X_m, y, start = fit$beta_hat)
+    test_pred <- predict_new_family(family, fit,
+                                    test$X[, cols, drop = FALSE])
+    list(loo = pointwise_scores_family(family, y, loo_pred, scores),
+         test = pointwise_scores_family(family, test$y, test_pred, scores))
+  })
+  list(family = family, y = y, y_test = test$y, measures = measures,
+       models = models)
+}
+
+examples <- lapply(c(gaussian = "gaussian", binomial = "binomial",
+                     poisson = "poisson"), example_family)
+```
+
+## The outcomes
+
+```{r outcomes}
+outcome_summary <- function(ex) {
+  data.frame(family = ex$family, n = length(ex$y), mean = mean(ex$y),
+             sd = sd(ex$y), min = min(ex$y), max = max(ex$y),
+             n_test = length(ex$y_test))
+}
+knitr::kable(do.call(rbind, lapply(examples, outcome_summary)),
+             digits = 2, row.names = FALSE)
+```
+
+## The pointwise LOO scores
+
+The first five observations of model B:
+
+```{r pointwise, results = "asis"}
+for (ex in examples) {
+  s <- as.data.frame(ex$models$B$loo)
+  print(knitr::kable(head(cbind(y = ex$y, s), 5), digits = 3,
+                     caption = ex$family))
+  cat("\n")
+}
+```
+
+## Each measure for each model
+
+`measure_estimate()` gives a measure of one model on its own scale, from
+`MEASURE_SPEC`. A sum is scaled to $n$ observations, so that the test value
+and the LOO value are comparable.
+
+```{r measure-estimate}
+measure_estimate <- function(measure, scores, y, n = length(y)) {
+  spec <- MEASURE_SPEC[[measure]]
+  s <- scores[[spec$score]]
+  if (spec$diff_method == "measure_specific") return(spec$estimate(s, y))
+  weight <- if (is.null(spec$weight)) 1 else spec$weight
+  m <- mean(weight * s)
+  if (spec$diff_method == "sum") n * m else m
+}
+
+model_table <- function(ex) {
+  one <- function(m, set) {
+    y <- if (set == "loo") ex$y else ex$y_test
+    vapply(ex$measures, measure_estimate, numeric(1),
+           scores = ex$models[[m]][[set]], y = y, n = length(ex$y))
+  }
+  data.frame(measure = ex$measures,
+             loo_A = one("A", "loo"), test_A = one("A", "test"),
+             loo_B = one("B", "loo"), test_B = one("B", "test"),
+             row.names = NULL)
+}
+```
+
+```{r model-tables, results = "asis"}
+for (ex in examples) {
+  print(knitr::kable(model_table(ex), digits = 3, caption = ex$family))
+  cat("\n")
+}
+```
+
+## Comparison of model A with model B
+
+`loo_difference()` gives the LOO estimate of $\Delta = U(A) - U(B)$ and its
+SE. `target_difference()` gives the same difference on the test set. B is
+the true model, so the target is negative for every measure. $z$ is the
+estimate divided by its SE.
+
+```{r compare-table}
+compare_table <- function(ex) {
+  a <- ex$models$A
+  b <- ex$models$B
+  test_mean <- function(m) lapply(m$test, mean)
+  by_class <- function(m) {
+    lapply(m$test, function(s) vapply(split(s, ex$y_test), mean, numeric(1)))
+  }
+  est <- vapply(ex$measures, loo_difference, numeric(2),
+                loo_a = a$loo, loo_b = b$loo, y = ex$y)
+  tgt <- vapply(ex$measures, target_difference, numeric(1),
+                test_a = test_mean(a), test_b = test_mean(b),
+                n_obs = length(ex$y),
+                y_test_var = mean((ex$y_test - mean(ex$y_test))^2),
+                by_class_a = by_class(a), by_class_b = by_class(b))
+  data.frame(measure = ex$measures, estimate = est[1, ], se = est[2, ],
+             z = est[1, ] / est[2, ], target = tgt, row.names = NULL)
+}
+```
+
+```{r compare-tables, results = "asis"}
+for (ex in examples) {
+  print(knitr::kable(compare_table(ex), digits = 3, caption = ex$family))
+  cat("\n")
+}
+```
+
+## Check against the single-model values
+
+For every measure, the LOO difference equals the difference of the
+single-model values on the utility scale. The largest absolute deviation
+over all families and measures:
+
+```{r consistency}
+deviation <- function(ex) {
+  mt <- model_table(ex)
+  sign <- ifelse(vapply(MEASURE_SPEC[ex$measures], `[[`, logical(1), "loss"),
+                 -1, 1)
+  est <- vapply(ex$measures, function(m) {
+    loo_difference(m, ex$models$A$loo, ex$models$B$loo, ex$y)[1]
+  }, numeric(1))
+  abs(est - sign * (mt$loo_A - mt$loo_B))
+}
+max(unlist(lapply(examples, deviation)))
+```
+
+## Check of rule compare_models
+
+The chunks run `workflow/scripts/compare_models.R` on the examples, with a
+mock `snakemake` object. Each family is one cell with two chunks. Both
+chunks hold the example training set, as trial 1 and trial 2. The rows of
+the script must equal `compare_table()` for each trial.
+
+```{r compare-models-input}
+N_CHUNKS <- 2
+dir <- tempfile("compare_models_")
+dir.create(dir)
+write_rds <- function(x, name) {
+  path <- file.path(dir, name)
+  saveRDS(x, path)
+  path
+}
+
+# The output of rule compute_measure for one model and one chunk.
+score_file <- function(ex, m, trial) {
+  s <- ex$models[[m]]
+  by_class <- if (ex$family == "binomial") {
+    lapply(s$test, function(v) {
+      as.matrix(vapply(split(v, ex$y_test), mean, numeric(1)))
+    })
+  }
+  write_rds(list(trials = trial, loo = lapply(s$loo, as.matrix),
+                 test = lapply(s$test, mean), test_by_class = by_class),
+            sprintf("%s_%s_%d.rds", ex$family, m, trial))
+}
+# The score files in the order of grid_files(): cells, then chunks.
+score_files <- function(m) {
+  as.list(unlist(lapply(examples, function(ex) {
+    lapply(seq_len(N_CHUNKS), function(k) score_file(ex, m, k))
+  })))
+}
+
+cells <- lapply(examples, function(ex) {
+  list(family = ex$family, n_obs = N_OBS, beta_t = 1, out_dev = 0,
+       n_chunks = N_CHUNKS)
+})
+input <- list(
+  a = score_files("A"),
+  b = score_files("B"),
+  train = lapply(examples, function(ex) {
+    write_rds(list(y = matrix(ex$y, N_OBS, N_CHUNKS)),
+              paste0(ex$family, "_train.rds"))
+  }),
+  info = lapply(examples, function(ex) {
+    write_rds(list(y_test_var = mean((ex$y_test - mean(ex$y_test))^2)),
+              paste0(ex$family, "_info.rds"))
+  })
+)
+```
+
+```{r compare-models-run}
+setClass("MockSnakemake", representation(
+  input = "list", output = "list", params = "list", log = "list",
+  source = "function"
+))
+env <- new.env()
+env$snakemake <- new(
+  "MockSnakemake",
+  input = input,
+  output = list(file.path(dir, "trials.rds")),
+  params = list(cells = cells, measures = as.list(names(MEASURE_SPEC))),
+  log = list(file.path(dir, "compare_models.log")),
+  source = function(f) {
+    sys.source(file.path("workflow/scripts", f), envir = env)
+    # Keep the log connection of start_log(), to close it after the run.
+    if (f == "lib/log.R") {
+      start_log <- env$start_log
+      env$start_log <- function(path) env$log_con <- start_log(path)
+    }
+  }
+)
+sys.source("workflow/scripts/compare_models.R", envir = env)
+# start_log() sends the messages to the log file. Send them back, and
+# close the log file.
+sink(type = "message")
+close(env$log_con)
+trials <- readRDS(file.path(dir, "trials.rds"))
+```
+
+The output has `r nrow(trials)` rows. The first rows:
+
+```{r compare-models-head}
+knitr::kable(head(trials, 8), digits = 3)
+```
+
+Rows of each cell and trial:
+
+```{r compare-models-count}
+table(cell = trials$cell, trial = trials$trial)
+```
+
+The largest absolute deviation from `compare_table()`, and the check that
+the missing values are at the same places:
+
+```{r compare-models-check}
+expected <- do.call(rbind, lapply(examples, function(ex) {
+  ct <- compare_table(ex)
+  do.call(rbind, lapply(seq_len(N_CHUNKS), function(k) {
+    data.frame(trial = k, ct[c("measure", "estimate", "se", "target")],
+               cell = ex$family)
+  }))
+}))
+stopifnot(
+  identical(trials$cell, expected$cell),
+  identical(as.integer(trials$trial), expected$trial),
+  identical(trials$measure, expected$measure)
+)
+cols <- c("estimate", "se", "target")
+got <- unname(as.matrix(trials[cols]))
+want <- unname(as.matrix(expected[cols]))
+max(abs(got - want), na.rm = TRUE)
+identical(is.na(got), is.na(want))
+```

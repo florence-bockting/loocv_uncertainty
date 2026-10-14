@@ -1,0 +1,452 @@
+---
+title: "Model fitting and prediction in glm.R"
+output:
+  html_document:
+    toc: true
+    math_method: mathjax
+---
+
+```{r root, include = FALSE}
+# Paths in this file are relative to the pipeline folder.
+knitr::opts_knit$set(root.dir = "..")
+```
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.width = 9, fig.height = 3)
+source("workflow/scripts/lib/dgp.R")
+source("workflow/scripts/lib/glm.R")
+source("workflow/scripts/lib/plot.R")
+```
+
+This file states the fitting and prediction step of each family in
+`workflow/scripts/lib/glm.R` as formal models. Each section names the
+functions that implement it.
+
+Two rules use this file:
+
+- Rule `fit_posterior_and_loo` has two steps for each training set. Step 1 calls
+  `fit_model_family()` for the posterior. Step 2 calls
+  `loo_predictive_family()` for the LOO predictive of each training point.
+- Rule `score` calls `predict_new_family()` on the pooled test set. Then
+  it scores the LOO predictive and the test predictive with
+  `lib/scores.R`.
+
+# Notation
+
+| Symbol | Argument | Default | Meaning |
+| :-- | :-- | :-- | :-- |
+| $X$ | `X` | | $n \times d$ design matrix of the training set |
+| $y$ | `y` | | training outcomes |
+| $\tilde x$ | a row of `X_new` | | covariates of a new point |
+| $d$ | `ncol(X)` | | number of coefficients |
+| $\sigma_0$ | `prior_sd` | `PRIOR_SD` = 5 | prior SD of the GLM coefficients |
+| $\hat\beta$ | `beta_hat` | | posterior mode (Gaussian: least squares) |
+| $V$ | `V` | | posterior covariance, see each family |
+| $-i$ | | | the training set without observation $i$ |
+
+## Models A and B
+
+`model_columns(model, n_dim)` selects the columns of $X$:
+
+- Model A uses columns $1, \dots, D - 1$. It omits the last covariate.
+- Model B uses all $D$ columns.
+
+All formulas below hold for both models. Only $X$ changes.
+
+## What a fit returns
+
+Each `fit_model_<family>()` returns the posterior of $\beta$, as
+$\hat\beta$ and $V$.
+
+Each `loo_predictive_<family>()` returns the LOO predictive
+$p(y_i \mid y_{-i})$ for each $i = 1, \dots, n$.
+
+Each `predict_new_<family>()` returns the test predictive
+$p(\tilde y \mid y)$ for each row of `X_new`. The LOO predictive and the
+test predictive have the same form, so `lib/scores.R` scores both with
+one function.
+
+# Gaussian model
+
+Functions: `fit_model_gaussian()`, `loo_predictive_gaussian()`,
+`predict_new_gaussian()`.
+
+## Model and prior
+
+$$
+\begin{aligned}
+y_i \mid \beta, \sigma^2 &\sim \mathcal{N}(x_i^\top \beta, \sigma^2), \\
+p(\beta) &\propto 1, \\
+p(\sigma^2) &\propto 1 / \sigma^2.
+\end{aligned}
+$$
+
+The noise variance $\sigma^2$ is unknown. Its prior is uniform on
+$\log \sigma^2$. These priors are
+the ones of Sivula et al. (2025).
+
+## Posterior
+
+The posterior is exact. No approximation is used.
+
+$$
+\hat\beta = (X^\top X)^{-1} X^\top y, \qquad
+V = (X^\top X)^{-1}.
+$$
+
+$\beta \mid y$ is a multivariate $t$ with $n - d$ degrees of freedom,
+location $\hat\beta$ and scale $s^2 V$, where
+
+$$
+s^2 = \frac{\lVert y - X \hat\beta \rVert^2}{n - d}.
+$$
+
+`fit$V` stores $(X^\top X)^{-1}$ without the factor $s^2$.
+
+## Test predictive
+
+$$
+\tilde y \mid y \sim
+t_{n-d}\!\left(\tilde x^\top \hat\beta,\;
+  s^2 (1 + \tilde x^\top V \tilde x)\right).
+$$
+
+`predict_new_gaussian()` returns `list(mu, scale, df)`.
+
+## LOO predictive
+
+The LOO predictive is exact. It needs no refit. With the hat values
+$h_i = x_i^\top (X^\top X)^{-1} x_i$ and the residuals
+$e_i = y_i - x_i^\top \hat\beta$ of the full fit:
+
+$$
+\begin{aligned}
+y_i - x_i^\top \hat\beta_{-i} &= \frac{e_i}{1 - h_i}, \\
+1 + x_i^\top (X_{-i}^\top X_{-i})^{-1} x_i &= \frac{1}{1 - h_i}, \\
+\mathrm{RSS}_{-i} &= \mathrm{RSS} - \frac{e_i^2}{1 - h_i}.
+\end{aligned}
+$$
+
+So the LOO predictive of $y_i$ has
+
+- location $\mu_i = y_i - e_i / (1 - h_i)$,
+- scale$^2$ $= s^2_{-i} / (1 - h_i)$ with
+  $s^2_{-i} = \mathrm{RSS}_{-i} / (n - 1 - d)$,
+- $n - 1 - d$ degrees of freedom.
+
+`loo_predictive_gaussian()` computes $h_i$ and $e_i$ from one QR decomposition.
+
+# Binomial (Bernoulli) model
+
+Functions: `laplace_approx()`, `mean_weight()`, `log_lik()`, `predictive_prob()`,
+`loo_predictive_binomial()`, `fit_model_binomial()`,
+`predict_new_binomial()`.
+
+## Model and prior
+
+$$
+\begin{aligned}
+y_i \mid \beta &\sim \operatorname{Bernoulli}\!\left(\operatorname{logit}^{-1}(x_i^\top \beta)\right), \\
+\beta &\sim \mathcal{N}(0, \sigma_0^2 I), \qquad \sigma_0 = 5.
+\end{aligned}
+$$
+
+A flat prior gives an improper posterior under separation. Separation is
+frequent at small $n$. So the prior is weakly informative, not flat.
+
+## Posterior: Laplace approximation
+
+No closed form exists. `laplace_approx(family = "binomial")` uses a
+Laplace approximation:
+
+$$
+\beta \mid y \approx \mathcal{N}(\hat\beta, V).
+$$
+
+**Mode.** Newton's method (penalised IRLS) maximises the log posterior
+
+$$
+\ell(\beta) = \sum_i \left[ y_i \eta_i - \log(1 + e^{\eta_i}) \right]
+  - \frac{\lVert \beta \rVert^2}{2 \sigma_0^2},
+\qquad \eta_i = x_i^\top \beta.
+$$
+
+With $p_i = \operatorname{logit}^{-1}(\eta_i)$, $W = \operatorname{diag}(p_i (1 - p_i))$
+and $P = I / \sigma_0^2$, one step is
+
+$$
+\beta \leftarrow \beta + H^{-1} \left[ X^\top (y - p) - P \beta \right],
+\qquad H = X^\top W X + P.
+$$
+
+If a step decreases $\ell(\beta)$, it is halved until $\ell(\beta)$ does not
+decrease, at most 30 times. A decrease of the size of the rounding error
+does not count. Without the halving, a large count (an outlier) makes the
+first Poisson step overshoot to $\eta \approx 60$. Each later step then
+lowers $\eta$ by only 1.
+
+The iteration stops when the largest full step is below $10^{-10}$. After
+100 steps without convergence, `laplace_approx()` warns and returns `NA`.
+The NA makes every measure of the trial NA, and `summarise.R` drops the
+trial. The weights have a floor of $10^{-10}$, so $H$ stays positive
+definite.
+
+**Covariance.** $V = H^{-1}$, with $H$ evaluated at $\hat\beta$.
+
+## Test predictive
+
+The test predictive depends on $\beta$ only through $\tilde\eta = \tilde x^\top \beta$.
+Under the Laplace posterior, $\tilde\eta \sim \mathcal{N}(m, s^2)$ with
+
+$$
+m = \tilde x^\top \hat\beta, \qquad s^2 = \tilde x^\top V \tilde x.
+$$
+
+So the test predictive probability of $\tilde y = 1$ is a one-dimensional
+integral:
+
+$$
+p = \Pr(\tilde y = 1 \mid y)
+  = \int \operatorname{logit}^{-1}(\eta) \, \mathcal{N}(\eta \mid m, s^2) \, d\eta.
+$$
+
+`predictive_prob()` computes it with the trapezoid rule over the
+standardised $t = (\eta - m) / s$:
+
+- range $t \in [-9, 9]$ (`QUAD_RANGE`),
+- step $h = 0.5 / \max(1, \max_j s_j)$ (`QUAD_STEP`), with the largest
+  $s$ over all rows, so all rows share one grid.
+
+The step shrinks as $s$ grows, because the poles of
+$\operatorname{logit}^{-1}(m + s t)$ come closer to the real axis.
+`predict_new_binomial()` returns `list(p)`.
+
+## LOO predictive
+
+The LOO predictive is exact with respect to the Laplace model. For each
+$i$, `loo_predictive_binomial()`:
+
+1. refits `laplace_approx()` on $(X_{-i}, y_{-i})$, with a warm start at
+   the full-data mode $\hat\beta$;
+2. sets $m_i = x_i^\top \hat\beta_{-i}$ and $s_i^2 = x_i^\top V_{-i} x_i$;
+3. computes $p_i$ with `predictive_prob(m_i, s_i)`.
+
+This is $n$ refits for each training set.
+
+# Poisson model
+
+Functions: `laplace_approx()`, `mean_weight()`, `log_lik()`, `pois_nodes()`,
+`pois_k_max()`,
+`predictive_pmf()`, `predictive_count_dens()`,
+`loo_predictive_poisson()`, `fit_model_poisson()`,
+`predict_new_poisson()`.
+
+## Model and prior
+
+$$
+\begin{aligned}
+y_i \mid \beta &\sim \operatorname{Poisson}\!\left(e^{x_i^\top \beta}\right), \\
+\beta &\sim \mathcal{N}(0, \sigma_0^2 I), \qquad \sigma_0 = 5.
+\end{aligned}
+$$
+
+## Posterior: Laplace approximation
+
+`laplace_approx(family = "poisson")` uses the same Newton method as the
+binomial model, with the log link. With $\mu_i = e^{\eta_i}$ and $W = \operatorname{diag}(\mu_i)$:
+
+$$
+\ell(\beta) = \sum_i \left[ y_i \eta_i - e^{\eta_i} \right]
+  - \frac{\lVert \beta \rVert^2}{2 \sigma_0^2},
+\qquad
+\beta \leftarrow \beta + H^{-1} \left[ X^\top (y - \mu) - P \beta \right],
+$$
+
+with $H = X^\top W X + P$ and $V = H^{-1}$ at $\hat\beta$.
+
+- In $\mu$ and $W$, $\eta$ is capped at 30 (`ETA_MAX`), so $e^{\eta}$
+  cannot overflow.
+- `log_lik()` does not cap $\eta$. A step to a huge $\eta$ then gets a
+  low $\ell(\beta)$, and the step is halved.
+- The weights have a floor of $10^{-10}$.
+
+## Test predictive
+
+Again $\tilde\eta \sim \mathcal{N}(m, s^2)$ with $m = \tilde x^\top \hat\beta$
+and $s^2 = \tilde x^\top V \tilde x$. So the rate $\lambda = e^{\tilde\eta}$
+is lognormal, and the test predictive is a Poisson–lognormal mixture:
+
+$$
+\Pr(\tilde y = k \mid y)
+  = \int \operatorname{Poisson}(k \mid e^{\eta}) \,
+    \mathcal{N}(\eta \mid m, s^2) \, d\eta,
+\qquad k = 0, 1, 2, \dots
+$$
+
+`predict_new_poisson()` returns only `list(m, s)`. `lib/scores.R` then
+evaluates the integral as each score needs it:
+
+- **elpd:** `predictive_count_dens()` evaluates the integral at the
+  observed count only. It needs no count grid.
+- **sqe, ae:** they use the exact predictive mean
+  $\mathbb{E}[\tilde y] = e^{m + s^2 / 2}$.
+- **rps, srps:** `predictive_pmf()` builds the pmf on $k = 0, \dots, k_{\max}$.
+  `pois_k_max()` doubles $k_{\max}$ until the tail mass is below
+  $10^{-6}$ (`POIS_TAIL`), up to 20000 (`POIS_K_MAX`). The pmf is then
+  renormalised.
+
+The quadrature is the trapezoid rule over $t \in [-5, 5]$
+(`QUAD_RANGE_POIS`). The step shrinks with $s$ and with the largest
+count, because $\operatorname{Poisson}(k \mid e^{m + s t})$ gets narrower in $t$
+as $k$ grows. `pois_nodes()` divides the weights $\phi(t)$ by their sum,
+so the weights sum to one.
+
+## LOO predictive
+
+`loo_predictive_poisson()` follows the binomial steps 1 and 2: one refit
+for each $i$, warm started at $\hat\beta$. It returns `list(m, s)`.
+
+# Summary
+
+| | Gaussian | Binomial | Poisson |
+| :-- | :-- | :-- | :-- |
+| Prior on $\beta$ | flat | $\mathcal{N}(0, 5^2 I)$ | $\mathcal{N}(0, 5^2 I)$ |
+| Posterior | exact | Laplace | Laplace |
+| Mode | least squares | Newton (IRLS) | Newton (IRLS) |
+| Predictive | $t$ | $\mathbb{E}[\operatorname{logit}^{-1}(\eta)]$, quadrature | Poisson–lognormal, quadrature |
+| LOO | closed form, no refit | $n$ refits | $n$ refits |
+| Returned form | `list(mu, scale, df)` | `list(p)` | `list(m, s)` |
+
+## Is the Laplace approximation good enough?
+
+At small $n$, the binomial posterior is skewed. Then the Laplace
+predictive differs from the exact Bayesian predictive. This does not
+bias the study:
+
+- The study checks whether LOO estimates the test score of *a*
+  predictive. That predictive does not need to be the exact posterior.
+- The LOO predictive and the test predictive use the same approximation.
+
+# One fit for each family
+
+The chunk fits model B to one data set of each family, with no
+outlier, for $n = 64$ and $n = 1024$. The smaller set is the first 64
+rows of the larger one. It prints the true $\beta$, the posterior mode
+$\hat\beta$ and the fields of the LOO predictive. The Poisson data use
+the scaled $\beta$ of `make_data_poisson()`: the slopes times
+`POIS_SCALE` = 0.5, and the intercept `POIS_INTERCEPT` = 1.
+
+```{r fit}
+beta <- make_beta_coeff(1)
+beta_pois <- beta * POIS_SCALE
+beta_pois[1] <- POIS_INTERCEPT
+beta_true <- list(gaussian = beta, binomial = beta, poisson = beta_pois)
+n_grid <- c(64, 1024)
+
+fmt <- function(b) paste(sprintf("%5.2f", b), collapse = ", ")
+for (fam in names(beta_true)) {
+  set.seed(1)
+  d <- make_data_family(fam, 1, max(n_grid), max(n_grid), beta, out_dev = 0)
+  cat(sprintf("%-8s true            = (%s)\n", fam, fmt(beta_true[[fam]])))
+  for (n in n_grid) {
+    X <- d$X[seq_len(n), , 1]
+    y <- d$y[seq_len(n), 1]
+    fit <- fit_model_family(fam, X, y)
+    loo <- loo_predictive_family(fam, X, y, start = fit$beta_hat)
+    cat(sprintf("%-8s beta_hat n=%-4d = (%s) | loo: %s\n", "", n,
+                fmt(fit$beta_hat), paste(names(loo), collapse = ", ")))
+  }
+}
+```
+
+# How noisy is one fit?
+
+One data set gives one draw of $\hat\beta$. The chunk below repeats the
+fit on 200 data sets of each family, for $n = 16, 32, \dots, 1024$. Each
+smaller set is the first $n$ rows of the largest one.
+
+```{r sim}
+n_sets <- 200
+n_seq <- 2^(4:10)
+coef_names <- c("intercept", "slope 1", "slope 2 (beta_t)")
+
+# Posterior mode and posterior SD of each coefficient. The Gaussian
+# posterior is a t, so its SD has the factor df / (df - 2).
+posterior <- function(fam, X, y) {
+  if (fam == "gaussian") {
+    f <- fit_model_gaussian(X, y)
+    sd <- sqrt(f$s2 * diag(f$V) * f$df / (f$df - 2))
+  } else {
+    f <- laplace_approx(X, y, fam)
+    sd <- sqrt(diag(f$V))
+  }
+  list(beta_hat = f$beta_hat, sd = sd)
+}
+
+sim <- list()
+for (fam in names(beta_true)) {
+  set.seed(1)
+  d <- make_data_family(fam, n_sets, max(n_seq), max(n_seq), beta,
+                        out_dev = 0)
+  est <- sd <- array(NA_real_, c(length(n_seq), n_sets, length(beta)))
+  for (a in seq_along(n_seq)) {
+    k <- seq_len(n_seq[a])
+    for (s in seq_len(n_sets)) {
+      p <- posterior(fam, d$X[k, , s], d$y[k, s])
+      est[a, s, ] <- p$beta_hat
+      sd[a, s, ] <- p$sd
+    }
+  }
+  sim[[fam]] <- list(est = est, sd = sd)
+}
+```
+
+## Spread of $\hat\beta$ over data sets
+
+The band holds 95% of the 200 estimates. The solid line is their median.
+The dashed line is the true $\beta$. The band narrows as $1 / \sqrt n$.
+
+```{r plot-spread, fig.height = 7}
+band <- grDevices::adjustcolor(MPL[1], alpha.f = 0.25)
+op <- par(mfrow = c(3, 3), mar = c(4, 4, 2, 1))
+for (fam in names(sim)) {
+  for (j in seq_along(beta)) {
+    q <- apply(sim[[fam]]$est[, , j], 1, quantile,
+               c(0.025, 0.5, 0.975), na.rm = TRUE)
+    plot(n_seq, q[2, ], log = "x", type = "n", ylim = range(q),
+         xaxt = "n", xlab = "n", ylab = expression(hat(beta)),
+         main = paste(fam, "-", coef_names[j]))
+    axis(1, at = n_seq)
+    polygon(c(n_seq, rev(n_seq)), c(q[1, ], rev(q[3, ])), col = band,
+            border = NA)
+    lines(n_seq, q[2, ], col = MPL[1], lwd = 2)
+    abline(h = beta_true[[fam]][j], lty = 2)
+  }
+}
+par(op)
+```
+
+## Posterior SD against the spread
+
+A single fit cannot show the spread above. It reports the posterior SD
+instead. The ratio below divides the mean posterior SD by the SD of
+$\hat\beta$ over the 200 data sets. A ratio near 1 means that one fit
+reports its own noise correctly.
+
+```{r plot-sd-ratio}
+op <- par(mfrow = c(1, 3), mar = c(4, 4, 2, 1))
+for (fam in names(sim)) {
+  ratio <- sapply(seq_along(beta), function(j) {
+    rowMeans(sim[[fam]]$sd[, , j], na.rm = TRUE) /
+      apply(sim[[fam]]$est[, , j], 1, sd, na.rm = TRUE)
+  })
+  matplot(n_seq, ratio, log = "x", type = "l", lty = 1, lwd = 2,
+          col = MPL[seq_along(beta)], ylim = c(0.5, 1.5), xaxt = "n",
+          xlab = "n", ylab = "posterior SD / SD of estimates", main = fam)
+  axis(1, at = n_seq)
+  abline(h = 1, lty = 2)
+  legend("topright", coef_names, col = MPL[seq_along(beta)], lwd = 2,
+         bty = "n")
+}
+par(op)
+```

@@ -1,0 +1,9 @@
+# Summaries and plots: base R, MASS (kde2d), png, and pdftoppm (poppler).
+channels:
+  - conda-forge
+  - nodefaults
+dependencies:
+  - r-base >=4.3
+  - r-mass
+  - r-png
+  - poppler

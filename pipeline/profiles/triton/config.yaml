@@ -1,0 +1,40 @@
+# Full grid on Aalto Triton with Slurm, started by snakemake_slurm.sh.
+# Follows https://github.com/AaltoRSE/snakemake-triton-example
+executor: slurm
+configfile: config/full.yaml
+software-deployment-method: conda
+conda-frontend: mamba
+jobs: 200
+latency-wait: 60
+retries: 1
+
+# Triton warns about jobs shorter than 120 s and asks for jobs of hours.
+# One Slurm job runs 4 chunk groups: about 100 jobs of 15-60 min.
+group-components:
+  - chunk=4
+
+default-resources:
+  slurm_partition: batch
+  mem_mb: 2000
+  runtime: 5
+
+# Runtimes from a Triton run with obs_per_chunk = 64: 3-5 min per chunk
+# group for every n_obs. With obs_per_chunk = 256 (make_cells.py), the
+# longest chunk group takes about 15 min.
+# summarise: all 3.5 million trials in memory.
+# compare_models: reads the score files of all cells and chunks. Runtime not
+# measured yet.
+# generate_data and the plots are localrules: they run in the Snakemake job.
+set-resources:
+  compute_measure:
+    mem_mb: 4000
+    runtime: 25
+  compare_models:
+    mem_mb: 16000
+    runtime: 120
+  summarise:
+    mem_mb: 16000
+    runtime: 60
+  fit_posterior_and_loo:
+    mem_mb: 4000
+    runtime: 120

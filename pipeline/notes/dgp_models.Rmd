@@ -1,0 +1,379 @@
+---
+title: "Data generating processes in dgp.R"
+output:
+  html_document:
+    toc: true
+    math_method: mathjax
+---
+
+```{r root, include = FALSE}
+# Paths in this file are relative to the pipeline folder.
+knitr::opts_knit$set(root.dir = "..")
+```
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.width = 9, fig.height = 3)
+source("workflow/scripts/lib/dgp.R")
+```
+
+This file states the three data generating processes (DGPs) in
+`workflow/scripts/lib/dgp.R` as formal models. Each section names the
+function that implements it.
+
+# Notation
+
+| Symbol | Argument | Default | Meaning |
+| :-- | :-- | :-- | :-- |
+| $S$ | `n_sets` | | number of independent data sets |
+| $n$ | `n_obs` | | observations in one data set |
+| $n_{\max}$ | `n_obs_max` | | rows drawn before the first $n$ are kept |
+| $D$ | `n_dim` = `length(beta)` | 3 | columns of $X$, intercept included |
+| $\beta$ | `beta` | `make_beta_coeff()` | coefficients |
+| $\Delta$ | `out_dev` | | outlier deviation |
+| $n_{\text{out}}$ | `n_obs_out` | 1 | number of outliers |
+| $\sigma^2$ | `sigma2_d` | 1 | Gaussian noise variance |
+
+The data sets $s = 1, \dots, S$ are independent. The formulas below are
+for one data set, so the index $s$ is dropped.
+
+The outlier set is the first $n_{\text{out}}$ observations:
+
+$$
+\mathcal{O} = \{1, \dots, \min(n_{\text{out}}, n)\}.
+$$
+
+# Shared parts
+
+## Coefficients
+
+`make_beta_coeff(beta_t, n_dim = 3, beta_other = 1, beta_intercept = 0)` returns
+
+$$
+\beta = (\beta_0, \beta_1, \dots, \beta_{D-2}, \beta_t)
+      = (0, 1, \dots, 1, \beta_t).
+$$
+
+Model A omits the last covariate. Model B includes it. So $\beta_t$ is
+the effect that only model B can capture.
+
+## Covariates
+
+For each observation $i = 1, \dots, n$:
+
+$$
+x_i = (1, x_{i1}, \dots, x_{i,D-1}), \qquad
+x_{ij} \overset{\text{iid}}{\sim} \mathcal{N}(0, 1).
+$$
+
+All three families draw the covariates in the same way.
+
+## Common random numbers
+
+Each function draws $n_{\max}$ rows and keeps the first $n$. Thus cells
+with a different $n$ share the first $n$ covariate rows. The Gaussian
+noise and the uniforms of the binomial and Poisson models are also drawn
+for $n_{\max}$ rows. So cells also share the first $n$ responses, up to the
+change in $\eta_i$ that the outlier makes.
+
+# Gaussian model
+
+Function: `make_data_gaussian()`.
+
+$$
+\begin{aligned}
+y_i &= x_i^\top \beta + \varepsilon_i, \\
+\varepsilon_i &\sim \mathcal{N}(\mu_i, \sigma^2), \\
+\mu_i &=
+  \begin{cases}
+    \Delta \sqrt{\sigma^2 + \lVert \beta \rVert_2^2} & i \in \mathcal{O}, \\
+    0 & \text{otherwise}.
+  \end{cases}
+\end{aligned}
+$$
+
+Equivalently, $y_i \sim \mathcal{N}(x_i^\top \beta + \mu_i, \sigma^2)$.
+
+- The shift scales with the marginal standard deviation of $y_i$:
+  $\operatorname{Var}(x_i^\top \beta) = \sum_{j \ge 1} \beta_j^2$.
+- The code uses `sum(beta^2)`. This sum includes $\beta_0^2$. With the
+  default $\beta_0 = 0$ the two are equal.
+
+# Binomial (Bernoulli) model
+
+Function: `make_data_binomial()`.
+
+$$
+\begin{aligned}
+\eta_i &= x_i^\top \beta, \\
+\tilde\eta_i &=
+  \begin{cases}
+    \eta_i - \Delta \, s(\eta_i) & i \in \mathcal{O}, \\
+    \eta_i & \text{otherwise},
+  \end{cases} \\
+y_i &\sim \operatorname{Bernoulli}\!\left(\operatorname{logit}^{-1}(\tilde\eta_i)\right),
+\end{aligned}
+$$
+
+with the sign function `sign_pos()`:
+
+$$
+s(x) =
+  \begin{cases}
+    -1 & x < 0, \\
+    +1 & x \ge 0.
+  \end{cases}
+$$
+
+- The shift moves $\eta_i$ towards the other class. A large $\Delta$
+  makes the outlier almost surely the class that its covariates argue
+  against.
+- $s(0) = +1$, so the shift is never zero.
+- The code draws $u_i \sim \mathcal{U}(0, 1)$ and sets
+  $y_i = \mathbb{1}\{u_i < \operatorname{logit}^{-1}(\tilde\eta_i)\}$.
+- $\Delta$ is on the logit scale.
+
+# Poisson model
+
+Function: `make_data_poisson()`. Constants: `POIS_SCALE` $= c = 0.5$ and
+`POIS_INTERCEPT` $= b_0 = 1$.
+
+The coefficients are rescaled. The intercept is replaced:
+
+$$
+b = (b_0, \, c\,\beta_1, \dots, c\,\beta_{D-1}).
+$$
+
+$$
+\begin{aligned}
+\eta_i &= x_i^\top b, \\
+\tilde\eta_i &=
+  \begin{cases}
+    \eta_i + \Delta & i \in \mathcal{O}, \\
+    \eta_i & \text{otherwise},
+  \end{cases} \\
+y_i &\sim \operatorname{Poisson}\!\left(\exp(\tilde\eta_i)\right).
+\end{aligned}
+$$
+
+- The shift is always upwards. A downward shift gives counts near 0.
+  Such counts are common at a rate near $e$, so the outlier would be weak.
+- $\Delta$ is on the log scale. The outlier rate is $e^{\Delta}$ times
+  the rate of its covariates.
+- The code draws $u_i \sim \mathcal{U}(0, 1)$ and sets
+  $y_i = F^{-1}(u_i \mid \exp(\tilde\eta_i))$, with $F$ the Poisson
+  distribution function (`qpois()`).
+- With the defaults, the median of $\eta_i$ is 1, so the median rate is
+  $e$. `beta_intercept` has no effect.
+
+# Summary
+
+| | Gaussian | Binomial | Poisson |
+| :-- | :-- | :-- | :-- |
+| Linear predictor | $x_i^\top \beta$ | $x_i^\top \beta$ | $x_i^\top b$, $b = (1, 0.5\,\beta_{1:})$ |
+| Link | identity | logit | log |
+| Outlier shift | $+\Delta \sqrt{\sigma^2 + \lVert\beta\rVert^2}$ on $\varepsilon_i$ | $-\Delta\, s(\eta_i)$ on $\eta_i$ | $+\Delta$ on $\eta_i$ |
+| Scale of $\Delta$ | SD of $y$ | logit | log |
+
+# One draw for each family
+
+```{r draw}
+set.seed(1)
+beta <- make_beta_coeff(1)
+n <- 100
+
+op <- par(mfrow = c(1, 3), mar = c(4, 4, 2, 1))
+for (fam in c("gaussian", "binomial", "poisson")) {
+  d <- make_data_family(fam, 1, n, n, beta, out_dev = 5)
+  eta <- drop(d$X[, , 1] %*% beta)
+  plot(eta, d$y[, 1], col = c(2, rep(1, n - 1)), pch = 19, cex = 0.6,
+       xlab = expression(x^T * beta), ylab = "y", main = fam)
+}
+par(op)
+```
+
+The red point is the outlier ($i = 1$).
+
+# Rule `generate_data` on example cells
+
+This section runs `workflow/scripts/generate_data.R`, the script of rule
+`generate_data`, outside Snakemake. A mock `snakemake` object gives the script its
+input. The input comes from `config/small.yaml` and
+`config/cells_small.tsv`.
+
+## Input
+
+```{r rule-input}
+config <- yaml::read_yaml("config/small.yaml")
+cells <- read.delim(config$cells, stringsAsFactors = FALSE)
+# As read_cells() and N_OBS_MAX in workflow/rules/common.smk.
+n_obs_max <- max(cells$n_obs)
+example <- c(gaussian = "n64_b1_o20",
+             binomial = "bin_n64_b1_o5",
+             poisson = "pois_n64_b1_o2")
+cells[match(example, cells$cell), ]
+config[c("n_sets_train", "n_sets_test_gaussian", "n_sets_test_binomial",
+         "n_sets_test_poisson", "seed")]
+n_obs_max
+```
+
+## Run the script
+
+```{r rule-run}
+setClass("MockSnakemake", representation(
+  params = "list", output = "list", log = "list", source = "function"
+))
+
+run_rule_data <- function(cell_name) {
+  row <- cells[cells$cell == cell_name, ]
+  cell <- list(family = row$family, n_obs = row$n_obs,
+               beta_t = row$beta_t, out_dev = row$out_dev,
+               n_chunks = row$n_chunks)
+  dir <- file.path(tempdir(), cell_name)
+  dir.create(dir, showWarnings = FALSE)
+  snakemake <- new("MockSnakemake",
+    params = list(cell = cell, n_sets_train = config$n_sets_train,
+                  n_sets_test_gaussian = config$n_sets_test_gaussian,
+                  n_sets_test_binomial = config$n_sets_test_binomial,
+                  n_sets_test_poisson = config$n_sets_test_poisson,
+                  n_obs_max = n_obs_max, seed = config$seed),
+    output = list(train = file.path(dir, "train.rds"),
+                  test = file.path(dir, "test.rds"),
+                  info = file.path(dir, "data_info.rds")),
+    log = list(file.path(dir, "data.log")),
+    source = function(f) source(file.path("workflow/scripts", f))
+  )
+  env <- new.env()
+  env$snakemake <- snakemake
+  open_before <- getAllConnections()
+  source("workflow/scripts/generate_data.R", local = env)
+  # Undo start_log(): restore the message stream and close the log file.
+  sink(type = "message")
+  for (con in setdiff(getAllConnections(), open_before)) {
+    close(getConnection(con))
+  }
+  list(cell = cell,
+       train = readRDS(snakemake@output$train),
+       test = readRDS(snakemake@output$test),
+       info = readRDS(snakemake@output$info))
+}
+
+out <- lapply(example, run_rule_data)
+```
+
+## Output
+
+The script writes three files for each cell:
+
+- `train.rds`: `X` as `[n_obs, n_dim, n_sets_train]`, `y` as
+  `[n_obs, n_sets_train]`.
+- `test.rds`: the pooled test sets. `X` as
+  `[n_obs * n_sets_test_<family>, n_dim]`, `y` as a vector.
+- `data_info.rds`: `y_test_var`, the variance of the test `y`.
+
+```{r rule-output}
+for (fam in names(out)) {
+  o <- out[[fam]]
+  cat(sprintf(
+    "%-8s train X %s, y %s | test X %s, y %d | y_test_var %.3f\n",
+    fam, paste(dim(o$train$X), collapse = " x "),
+    paste(dim(o$train$y), collapse = " x "),
+    paste(dim(o$test$X), collapse = " x "), length(o$test$y),
+    o$info$y_test_var))
+}
+```
+
+## Checks
+
+The outliers in the test data are the rows $(s - 1)\,n + 1$. The table
+compares the outliers with the other observations. It also compares the
+mean of $y$ with its expected value under the formal model.
+
+For the binomial family, the mean of $y$ does not show the outlier. So
+for this family $y$ is replaced by the indicator that $y_i$ is the class
+against the sign of $\eta_i$, $\mathbb{1}\{y_i \ne \mathbb{1}\{\eta_i \ge 0\}\}$.
+
+```{r rule-checks}
+# Linear predictor of the formal model, before the outlier shift.
+true_eta <- function(family, X, beta) {
+  if (family == "poisson") {
+    beta <- beta * POIS_SCALE
+    beta[1] <- POIS_INTERCEPT
+  }
+  drop(X %*% beta)
+}
+
+# Expected y of each observation under the formal model.
+expected_y <- function(family, eta, out_dev, is_out, beta) {
+  switch(family,
+    gaussian = eta + is_out * out_dev * sqrt(1 + sum(beta^2)),
+    binomial = plogis(eta - is_out * out_dev * sign_pos(eta)),
+    poisson = exp(eta + is_out * out_dev)
+  )
+}
+
+checks <- do.call(rbind, lapply(names(out), function(fam) {
+  o <- out[[fam]]
+  beta <- make_beta_coeff(o$cell$beta_t)
+  n <- o$cell$n_obs
+  is_out <- (seq_along(o$test$y) - 1) %% n == 0
+  eta <- true_eta(fam, o$test$X, beta)
+  ey <- expected_y(fam, eta, o$cell$out_dev, is_out, beta)
+  y <- o$test$y
+  if (fam == "binomial") {
+    y <- ifelse(eta >= 0, 1 - y, y)
+    ey <- ifelse(eta >= 0, 1 - ey, ey)
+  }
+  data.frame(
+    family = fam,
+    outlier_share = mean(is_out),
+    mean_y_out = mean(y[is_out]),
+    expected_out = mean(ey[is_out]),
+    mean_y_other = mean(y[!is_out]),
+    expected_other = mean(ey[!is_out]),
+    y_test_var = o$info$y_test_var,
+    var_check = mean((o$test$y - mean(o$test$y))^2)
+  )
+}))
+knitr::kable(checks, digits = 3)
+```
+
+## Plots
+
+Each column is one family. The top row shows the first training set. The
+bottom row shows the pooled test sets. Red points are outliers. The
+x-axis is the linear predictor $\eta_i$ of the formal model, before the
+outlier shift. The binomial $y$ is jittered.
+
+```{r rule-plots, fig.height = 6}
+# One x-range for each family, shared by its train and test plots.
+xlims <- lapply(out, function(o) {
+  beta <- make_beta_coeff(o$cell$beta_t)
+  range(true_eta(o$cell$family, o$train$X[, , 1], beta),
+        true_eta(o$cell$family, o$test$X, beta))
+})
+
+op <- par(mfrow = c(2, 3), mar = c(4, 4, 2, 1))
+for (part in c("train", "test")) {
+  for (fam in names(out)) {
+    o <- out[[fam]]
+    beta <- make_beta_coeff(o$cell$beta_t)
+    if (part == "train") {
+      X <- o$train$X[, , 1]
+      y <- o$train$y[, 1]
+    } else {
+      X <- o$test$X
+      y <- o$test$y
+    }
+    is_out <- (seq_along(y) - 1) %% o$cell$n_obs == 0
+    if (fam == "binomial") y <- jitter(y, amount = 0.08)
+    plot(true_eta(fam, X, beta), y, pch = 19, xlim = xlims[[fam]],
+         cex = if (part == "train") 0.6 else 0.3,
+         col = ifelse(is_out, "red", adjustcolor("black", 0.3)),
+         xlab = expression(eta), ylab = "y",
+         main = sprintf("%s, %s (%s)", fam, part,
+                        if (part == "train") "set 1"
+                        else paste(length(y), "points")))
+  }
+}
+par(op)
+```

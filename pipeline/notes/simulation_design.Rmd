@@ -1,0 +1,315 @@
+---
+title: "Simulation design and workflow"
+output:
+  html_document:
+    toc: true
+---
+
+```{r root, include = FALSE}
+# Paths in this file are relative to the pipeline folder.
+knitr::opts_knit$set(root.dir = "..")
+```
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+This file shows two things:
+
+1. The simulation design: all conditions of each grid.
+2. The workflow: the Snakemake rules and the order in which they run.
+
+All values come from the files in `config/`. The data generating
+processes are in `dgp_models.Rmd`.
+
+# Simulation design
+
+## Configurations
+
+Each config file selects one cell table and sets the global values. Run a
+config with `snakemake --configfile config/<name>.yaml`. The default in
+`workflow/Snakefile` is `config/small.yaml`.
+
+| Config | Purpose |
+| :-- | :-- |
+| `paper` | Reproduction of Fig. 5 and 6 in Sivula et al. (2025). Gaussian family and `elpd` only. |
+| `full` | Extension: the full grid of `simulated/setup_all.py`, for all families and measures. |
+| `small` | Extension on a small grid: a quick test on a laptop. |
+
+```{r configs}
+config_files <- c(small = "config/small.yaml", paper = "config/paper.yaml",
+                  full = "config/full.yaml")
+configs <- lapply(config_files, yaml::read_yaml)
+# A config has no n_sets_test_<family> for a family without cells.
+or_na <- function(x) if (is.null(x)) NA else x
+
+knitr::kable(t(sapply(configs, function(cfg) c(
+  cells = cfg$cells,
+  results = cfg$results,
+  n_sets_train = cfg$n_sets_train,
+  n_sets_test_gaussian = cfg$n_sets_test_gaussian,
+  n_sets_test_binomial = or_na(cfg$n_sets_test_binomial),
+  n_sets_test_poisson = or_na(cfg$n_sets_test_poisson),
+  seed = cfg$seed
+)))
+)
+```
+
+- `n_sets_train`: the number of training sets (trials) in each cell.
+- `n_sets_test_gaussian`, `n_sets_test_binomial`, `n_sets_test_poisson`:
+  the number of test sets in each cell. The test sets are pooled into one test sample.
+
+The measures of each config, for each family. A dash marks a family
+without cells in the config. Rule `score` computes the pointwise scores
+that the measures need.
+
+```{r measures}
+source("workflow/scripts/lib/measures.R")
+families <- c("gaussian", "binomial", "poisson")
+
+knitr::kable(t(sapply(configs, function(cfg) {
+  in_cells <- unique(read.delim(cfg$cells)$family)
+  sapply(families, function(f) {
+    if (!f %in% in_cells) return("-")
+    paste(measures_for_family(cfg$measures, f), collapse = ", ")
+  })
+})))
+```
+
+The measures `brier`, `acc` and `bacc` apply to the binomial family only.
+
+## Fixed settings
+
+These settings are the same in all cells:
+
+| Setting | Value | Source |
+| :-- | :-- | :-- |
+| Columns of $X$, $D$ | 3 (intercept, $x_1$, $x_2$) | `make_beta_coeff()` |
+| Coefficients $\beta$ | $(0, 1, \beta_t)$ | `make_beta_coeff()` |
+| Number of outliers | 1 (the first observation) | `n_obs_out` |
+| Gaussian noise variance $\sigma^2$ | 1 | `sigma2_d` |
+| Model A | columns 1 and 2 of $X$ | `model_columns()` |
+| Model B | columns 1 to 3 of $X$ | `model_columns()` |
+
+So model A omits the covariate with the coefficient $\beta_t$.
+
+## Factors
+
+A cell is one combination of the factors below. The factors are crossed
+within each family.
+
+| Factor | Column | Meaning |
+| :-- | :-- | :-- |
+| Family | `family` | Gaussian, binomial or Poisson DGP and model |
+| $n$ | `n_obs` | observations in one training set |
+| $\beta_t$ | `beta_t` | coefficient that only model B has |
+| $\Delta$ | `out_dev` | outlier deviation (scale differs by family) |
+
+```{r factors}
+cells <- lapply(configs, function(cfg) {
+  read.delim(cfg$cells, stringsAsFactors = FALSE)
+})
+
+levels_of <- function(x) paste(sort(unique(x)), collapse = ", ")
+
+factor_table <- do.call(rbind, lapply(names(cells), function(grid) {
+  d <- cells[[grid]]
+  do.call(rbind, lapply(split(d, d$family), function(f) data.frame(
+    grid = grid,
+    family = f$family[1],
+    n_obs = levels_of(f$n_obs),
+    beta_t = levels_of(f$beta_t),
+    out_dev = levels_of(f$out_dev),
+    cells = nrow(f),
+    chunks = sum(f$n_chunks)
+  )))
+}))
+rownames(factor_table) <- NULL
+knitr::kable(factor_table)
+```
+
+`chunks` is the total number of chunks. A chunk is a part of the trials of
+one cell. Rule `fit_posterior_and_loo` and rule `score` run once for
+each chunk.
+
+## Size of each grid
+
+```{r grid-size}
+knitr::kable(do.call(rbind, lapply(names(cells), function(grid) {
+  d <- cells[[grid]]
+  n_sets_train <- configs[[grid]]$n_sets_train
+  data.frame(
+    grid = grid,
+    cells = nrow(d),
+    trials = nrow(d) * n_sets_train,
+    model_fits = 2 * nrow(d) * n_sets_train,
+    training_observations = n_sets_train * sum(d$n_obs)
+  )
+})))
+```
+
+`model_fits` counts one fit of model A and one fit of model B in each
+trial. Each fit also computes the LOO predictive of all $n$ observations.
+
+## All cells
+
+The cell name encodes the factors. For example, `bin_n64_b1_o5` is
+the binomial cell with $n = 64$, $\beta_t = 1$ and $\Delta = 5$.
+
+<details>
+<summary>Cells of the full grid (click to open)</summary>
+
+```{r all-cells, echo = FALSE}
+knitr::kable(cells$full, row.names = FALSE)
+```
+
+</details>
+
+# Workflow
+
+## Rule graph
+
+The graph shows the rules and the files that connect them. The rules in
+the grey box run once for each cell, or for each chunk of a cell. The
+other rules run once for the whole grid, or once for each figure. A
+dashed arrow carries only the Gaussian `elpd` figure.
+
+```{dot rulegraph, echo = FALSE, fig.cap = "Rules of the workflow. An arrow goes from the rule that writes a file to the rule that reads it."}
+digraph rules {
+  graph [rankdir = TB, fontname = "Helvetica", fontsize = 11,
+         nodesep = 0.25, ranksep = 0.45];
+  node  [shape = box, style = "rounded,filled", fillcolor = white,
+         fontname = "Helvetica", fontsize = 11];
+  edge  [fontname = "Helvetica", fontsize = 9, color = gray30];
+
+  subgraph cluster_cell {
+    label = "each cell";
+    style = filled; fillcolor = gray95; color = gray70;
+    generate_data;
+    fit_posterior_and_loo [label = "fit_posterior_and_loo\n(model, chunk)"];
+    score   [label = "score\n(model, chunk)"];
+  }
+
+  compare_models   [fillcolor = lightyellow];
+  summarise [fillcolor = lightyellow];
+  all       [shape = doubleoctagon, fillcolor = lightblue];
+
+  plot_calibration; plot_joint; plot_var_ratio; plot_err;
+  plot_errdirection; plot_moments; plot_overview;
+  plot_coverage; plot_pointwise [label = "plot_pointwise\n(cell)"];
+  side_by_side [label = "side_by_side\n(fig)"];
+
+  generate_data -> fit_posterior_and_loo [label = "train"];
+  generate_data -> score   [label = "train, test"];
+  generate_data -> compare_models [label = "train, data_info"];
+  fit_posterior_and_loo -> score [label = "fits, loos"];
+  score   -> compare_models [label = "score A, B\n(all cells, chunks)"];
+  score   -> plot_pointwise;
+
+  compare_models -> summarise [label = "trials"];
+  compare_models -> {plot_calibration plot_pointwise plot_joint plot_var_ratio plot_err
+              plot_errdirection plot_overview plot_coverage};
+  summarise -> {plot_moments plot_overview} [label = "moments"];
+
+  {plot_calibration plot_joint plot_var_ratio plot_err
+   plot_errdirection plot_moments} -> side_by_side [style = dashed];
+
+  {compare_models plot_calibration plot_joint plot_var_ratio plot_err
+   plot_errdirection plot_moments plot_overview plot_coverage
+   plot_pointwise side_by_side} -> all [color = gray70];
+}
+```
+
+## Rules
+
+The rules are in `workflow/rules/`. All results go into the `results`
+folder of the config, here written as `RES`.
+
+| Order | Rule | Runs once for each | Input | Output | Script |
+| --: | :-- | :-- | :-- | :-- | :-- |
+| 1 | `data` | cell | cell parameters | `{cell}/train.rds`, `{cell}/test.rds` (temp), `{cell}/data_info.rds` | `generate_data.R` |
+| 2 | `fit` | cell, model, chunk | `train.rds` | `{cell}/fit/{model}_{chunk}.rds` | `fit.R` |
+| 3 | `score` | cell, model, chunk | `fit`, `train.rds`, `test.rds` | `{cell}/score/{model}_{chunk}.rds` | `score.R` |
+| 4 | `compare_models` | grid | all `score` A and B, `train.rds` and `data_info.rds` files | `trials.rds` | `compare_models.R` |
+| 5 | `summarise` | grid | `trials.rds` | `moments.rds` | `summarise.R` |
+| 6 | `plot_calibration` | family, measure | `trials.rds` | `figs/calibration_{family}_{measure}.pdf` | `plot_calibration.R` |
+| 6 | `plot_joint` | family, measure | `trials.rds` | `figs/joint_{family}_{measure}.pdf` | `plot_joint.R` |
+| 6 | `plot_var_ratio` | family, measure | `trials.rds` | `figs/var_ratio_{family}_{measure}.pdf` | `plot_var_ratio.R` |
+| 6 | `plot_err` | family, measure | `trials.rds` | `figs/err_{family}_{measure}.pdf` | `plot_err.R` |
+| 6 | `plot_errdirection` | family, measure | `trials.rds` | `figs/errdirection_{family}_{measure}.pdf` | `plot_err.R` |
+| 6 | `plot_coverage` | grid | `trials.rds` | `figs/coverage_*.pdf`, `coverage_cutoffs.csv` | `plot_coverage.R` |
+| 6 | `plot_moments` | family, measure | `moments.rds` | `figs/moments_{family}_{measure}.pdf` | `plot_moments.R` |
+| 6 | `plot_overview` | family, measure | `trials.rds`, `moments.rds` | `figs/overview_{family}_{measure}.pdf` | `plot_overview.R` |
+| 6 | `plot_pointwise` | plotted cell | `score` of the cell, `trials.rds` | `figs/pointwise_{cell}.pdf` | `plot_pointwise.R` |
+| 7 | `side_by_side` | paper figure | paper PDF, `figs/{fig}_gaussian_elpd.pdf` | `figs/side_by_side_{fig}.pdf` | `side_by_side.R` |
+| 8 | `all` | grid | `trials.rds`, all figures | | |
+
+- Rules with the same order number do not depend on each other.
+  Snakemake can run them in parallel.
+- `fit` and `score` are in the group `chunk`. On Slurm, one job runs
+  the two rules of one chunk.
+- `test.rds` is temporary. Snakemake deletes it after the last `score`
+  job of the cell. `train.rds` is kept: `compare_models` reads it.
+- `side_by_side` runs only if the config has `paper_figs`.
+
+## Number of jobs
+
+The table counts the jobs of each rule, as `workflow/rules/common.smk`
+defines them.
+
+```{r jobs}
+MEASURES_BINARY <- c("brier", "acc", "bacc")
+FIGS_PER_MEASURE <- c("calibration", "joint", "moments", "var_ratio",
+                      "err", "errdirection", "overview")
+
+# Mirrors plot_cells() in workflow/rules/common.smk.
+plot_cells <- function(cfg, d) {
+  keep <- vapply(seq_len(nrow(d)), function(i) {
+    sel <- cfg$plot
+    sel[names(cfg[[paste0("plot_", d$family[i])]])] <-
+      cfg[[paste0("plot_", d$family[i])]]
+    d$n_obs[i] %in% sel$n_obs &&
+      d$beta_t[i] %in% as.numeric(sel$beta_t) &&
+      d$out_dev[i] %in% as.numeric(sel$out_dev)
+  }, logical(1))
+  d$cell[keep]
+}
+
+jobs <- do.call(cbind, lapply(names(cells), function(grid) {
+  cfg <- configs[[grid]]
+  d <- cells[[grid]]
+  families <- unique(d$family)
+  # Measures of each family, as family_measures() in common.smk.
+  n_measures <- sum(vapply(families, function(f) {
+    if (f == "binomial") length(cfg$measures)
+    else length(setdiff(cfg$measures, MEASURES_BINARY))
+  }, numeric(1)))
+  chunks <- sum(d$n_chunks)
+  per_fig <- n_measures
+  setNames(data.frame(c(
+    data = nrow(d),
+    fit = 2 * chunks,
+    score = 2 * chunks,
+    compare_models = 1,
+    summarise = 1,
+    plot_calibration = per_fig,
+    plot_joint = per_fig,
+    plot_var_ratio = per_fig,
+    plot_err = per_fig,
+    plot_errdirection = per_fig,
+    plot_moments = per_fig,
+    plot_overview = per_fig,
+    plot_coverage = 1,
+    plot_pointwise = length(plot_cells(cfg, d)),
+    side_by_side = length(cfg$paper_figs),
+    all = 1
+  )), grid)
+}))
+jobs <- rbind(jobs, total = colSums(jobs))
+knitr::kable(jobs)
+```
+
+Each `plot_*` rule with the wildcards family and measure runs once for
+each measure of each family. The Gaussian and the Poisson families have
+`r length(setdiff(configs$full$measures, MEASURES_BINARY))` measures. The
+binomial family has `r length(configs$full$measures)`.
